@@ -55,9 +55,11 @@ namespace TetrisArcade
         readonly Color accent     = new Color(0.20f, 0.85f, 0.95f);
         readonly Color panelEmpty = new Color(0.10f, 0.10f, 0.15f);
 
-        // ---- Camera framing ----
-        const float camX = 6f, camY = 10f, camSize = 12f;
-        static readonly Vector2 previewOrigin = new Vector2(11f, 13.5f);
+        // ---- Camera framing (set by ConfigureLayout based on the aspect ratio) ----
+        float camX = 6f, camY = 10f, camSize = 12f;
+        Vector2 previewOrigin = new Vector2(11f, 13.5f);
+        bool portrait;              // true for tall aspect ratios (9:16, 3:4, ...)
+        int lastScreenW, lastScreenH;
 
         // ---- Board state ----
         int[,] board = new int[Width, Height]; // -1 empty, else color/piece index
@@ -79,6 +81,7 @@ namespace TetrisArcade
         Camera cam;
         SpriteRenderer[,] cells = new SpriteRenderer[Width, Height];
         SpriteRenderer[,] preview = new SpriteRenderer[4, 4];
+        SpriteRenderer previewBG;
         Sprite square;
 
         
@@ -86,6 +89,8 @@ namespace TetrisArcade
         {
             Application.runInBackground = true;
             square = MakeSquareSprite();
+            lastScreenW = Screen.width; lastScreenH = Screen.height;
+            ConfigureLayout();
             SetupCamera();
             BuildVisuals();
             NewGame();
@@ -120,6 +125,68 @@ namespace TetrisArcade
             cam.backgroundColor = bgColor;
         }
 
+        // ============================ RESPONSIVE LAYOUT ============================
+
+        // Picks a landscape (side panel) or portrait (stacked) layout from the current
+        // aspect ratio, then frames the camera so the whole content box always fits.
+        void ConfigureLayout()
+        {
+            float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
+            portrait = aspect < 1f;
+
+            if (portrait)
+            {
+                // Board centered; NEXT + stats above, controls below.
+                previewOrigin = new Vector2(0f, 20.5f);
+                FitCamera(-1f, 10f, -4.5f, 25f, aspect);
+            }
+            else
+            {
+                // Board on the left, info panel on the right.
+                previewOrigin = new Vector2(11f, 13.5f);
+                FitCamera(-1f, 15.5f, -1f, 21.5f, aspect);
+            }
+        }
+
+        // Frames an orthographic camera so the world rect [xMin..xMax]x[yMin..yMax]
+        // is fully visible for the given aspect ratio (letterboxing the shorter axis).
+        void FitCamera(float xMin, float xMax, float yMin, float yMax, float aspect)
+        {
+            camX = (xMin + xMax) * 0.5f;
+            camY = (yMin + yMax) * 0.5f;
+            float halfH = (yMax - yMin) * 0.5f;
+            float halfW = (xMax - xMin) * 0.5f;
+            camSize = Mathf.Max(halfH, halfW / Mathf.Max(0.0001f, aspect));
+        }
+
+        void ApplyCameraFraming()
+        {
+            if (cam == null) return;
+            cam.orthographicSize = camSize;
+            cam.transform.position = new Vector3(camX, camY, -10f);
+        }
+
+        // Re-place the preview panel objects after the layout origin changes.
+        void LayoutPreview()
+        {
+            if (previewBG != null)
+                previewBG.transform.position = new Vector3(previewOrigin.x + 1.5f, previewOrigin.y + 1.5f, 0);
+            for (int x = 0; x < 4; x++)
+                for (int y = 0; y < 4; y++)
+                    if (preview[x, y] != null)
+                        preview[x, y].transform.position = new Vector3(previewOrigin.x + x, previewOrigin.y + y, 0);
+        }
+
+        // Called every frame; reconfigures only when the Game view size actually changes.
+        void CheckLayout()
+        {
+            if (Screen.width == lastScreenW && Screen.height == lastScreenH) return;
+            lastScreenW = Screen.width; lastScreenH = Screen.height;
+            ConfigureLayout();
+            ApplyCameraFraming();
+            LayoutPreview();
+        }
+
         SpriteRenderer MakeSR(string name, Transform parent, Vector3 pos, Vector3 scale, Color color, int order)
         {
             var go = new GameObject(name);
@@ -146,7 +213,7 @@ namespace TetrisArcade
 
             // Preview panel
             Vector3 pc = new Vector3(previewOrigin.x + 1.5f, previewOrigin.y + 1.5f, 0);
-            MakeSR("PreviewBG", transform, pc, new Vector3(4.6f, 4.6f, 1), wellColor, 1);
+            previewBG = MakeSR("PreviewBG", transform, pc, new Vector3(4.6f, 4.6f, 1), wellColor, 1);
             for (int x = 0; x < 4; x++)
                 for (int y = 0; y < 4; y++)
                     preview[x, y] = MakeSR($"Prev_{x}_{y}", transform,
@@ -292,6 +359,8 @@ namespace TetrisArcade
 
         void Update()
         {
+            CheckLayout();
+
             ReadInput(out bool left, out bool right, out bool cw, out bool ccw,
                       out bool downHeld, out bool hard, out bool doPause, out bool restart,
                       out bool leftHeld, out bool rightHeld);
@@ -434,7 +503,7 @@ namespace TetrisArcade
 
         // ============================ HUD ============================
 
-        GUIStyle _label, _value, _title, _big, _small;
+        GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
 
         void OnGUI()
         {
@@ -448,28 +517,47 @@ namespace TetrisArcade
                 _title = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 _big   = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 _small = new GUIStyle { fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleLeft };
+                _stat  = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                _smallC = new GUIStyle { fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleCenter };
             }
             _label.fontSize = fs; _label.normal.textColor = new Color(0.6f, 0.75f, 0.85f);
             _value.fontSize = Mathf.RoundToInt(fs * 1.4f); _value.normal.textColor = Color.white;
             _title.fontSize = Mathf.RoundToInt(fs * 1.6f); _title.normal.textColor = accent;
             _big.fontSize   = Mathf.RoundToInt(fs * 2.0f); _big.normal.textColor = Color.white;
             _small.fontSize = Mathf.RoundToInt(fs * 0.85f); _small.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
+            _stat.fontSize  = Mathf.RoundToInt(fs * 1.15f); _stat.normal.textColor = Color.white;
+            _smallC.fontSize = Mathf.RoundToInt(fs * 0.85f); _smallC.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
 
-            WLabel(4.5f, 20.6f, "T E T R I S", _title, 400);
-            WLabel(previewOrigin.x, previewOrigin.y + 4.2f, "NEXT", _label, 200);
+            if (portrait)
+            {
+                // NEXT panel (top-left) and stats (top-right)
+                WLabel(previewOrigin.x, previewOrigin.y + 3.9f, "NEXT", _label, 200);
+                WLabel(6.8f, 23.6f, "SCORE " + score, _stat, 340);
+                WLabel(6.8f, 22.5f, "LEVEL " + level, _stat, 340);
+                WLabel(6.8f, 21.4f, "LINES " + lines, _stat, 340);
 
-            WLabel(11f, 12.3f, "SCORE", _label, 200);
-            WLabel(11f, 11.5f, score.ToString(), _value, 200);
-            WLabel(11f, 10.0f, "LEVEL", _label, 200);
-            WLabel(11f, 9.2f, level.ToString(), _value, 200);
-            WLabel(11f, 7.7f, "LINES", _label, 200);
-            WLabel(11f, 6.9f, lines.ToString(), _value, 200);
+                // Controls (below the board)
+                WLabel(4.5f, -2.3f, "← →  Move    ↑ / X  Rotate    ↓  Soft", _smallC, 900);
+                WLabel(4.5f, -3.4f, "Space  Hard drop  ·  P Pause  ·  R Restart", _smallC, 900);
+            }
+            else
+            {
+                WLabel(4.5f, 20.6f, "T E T R I S", _title, 400);
+                WLabel(previewOrigin.x, previewOrigin.y + 4.2f, "NEXT", _label, 200);
 
-            WLabel(11f, 4.6f, "← →  Move", _small, 220);
-            WLabel(11f, 4.0f, "↑ / X  Rotate", _small, 220);
-            WLabel(11f, 3.4f, "↓  Soft drop", _small, 220);
-            WLabel(11f, 2.8f, "Space  Hard drop", _small, 220);
-            WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
+                WLabel(11f, 12.3f, "SCORE", _label, 200);
+                WLabel(11f, 11.5f, score.ToString(), _value, 200);
+                WLabel(11f, 10.0f, "LEVEL", _label, 200);
+                WLabel(11f, 9.2f, level.ToString(), _value, 200);
+                WLabel(11f, 7.7f, "LINES", _label, 200);
+                WLabel(11f, 6.9f, lines.ToString(), _value, 200);
+
+                WLabel(11f, 4.6f, "← →  Move", _small, 220);
+                WLabel(11f, 4.0f, "↑ / X  Rotate", _small, 220);
+                WLabel(11f, 3.4f, "↓  Soft drop", _small, 220);
+                WLabel(11f, 2.8f, "Space  Hard drop", _small, 220);
+                WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
+            }
 
             if (gameOver)
             {
