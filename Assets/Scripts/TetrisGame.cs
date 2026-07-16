@@ -528,6 +528,8 @@ namespace TetrisArcade
         bool showSettings;
         Vector2 _menuScroll;
         bool _menuScrollInit;
+        int _pickW = -1, _pickH = -1;   // last selected resolution (drives the highlight immediately)
+        float _appliedAt = -10f;        // realtime of the last apply, for the transient "Applied" toast
         Texture2D _whiteTex;
 
         void OnGUI()
@@ -644,6 +646,11 @@ namespace TetrisArcade
             // borderless fullscreen would keep covering the whole monitor regardless.
             Screen.SetResolution(w, h, FullScreenMode.Windowed);
             SaveResolution(w, h);
+            // Move the highlight immediately and show a confirmation. Screen.width/height may not
+            // update this frame (and never updates inside the Editor Game view), so the UI must not
+            // wait on it for feedback.
+            _pickW = w; _pickH = h;
+            _appliedAt = Time.realtimeSinceStartup;
         }
 
         static string AspectLabel(int w, int h)
@@ -693,10 +700,15 @@ namespace TetrisArcade
 
             _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.5f);
             _menuTitle.normal.textColor = accent;
-            float titleH = fs * 2.4f;
+            float titleH = fs * 2.2f;
             GUI.Label(new Rect(px, py + fs * 0.4f, panelW, titleH), "RESOLUTION", _menuTitle);
 
+            // subtitle / instruction line
+            float subH = fs * 1.5f;
+            GUI.Label(new Rect(px, py + titleH, panelW, subH), "Tap a resolution to apply", _smallC);
+
             float closeH = fs * 2.2f;
+            float msgH = fs * 1.6f;
             float pad = fs * 0.8f;
             float rowH = fs * 2.0f;
             float rowGap = fs * 0.3f;
@@ -711,19 +723,21 @@ namespace TetrisArcade
                 if (RESOLUTIONS[i * 2] <= deskW && RESOLUTIONS[i * 2 + 1] <= deskH)
                     visible.Add(i);
 
-            Rect viewRect = new Rect(px + pad, py + titleH, panelW - pad * 2f, panelH - titleH - closeH - pad * 2f);
+            float listTop = py + titleH + subH;
+            Rect viewRect = new Rect(px + pad, listTop, panelW - pad * 2f, panelH - titleH - subH - closeH - msgH - pad * 2f);
             float contentH = visible.Count * (rowH + rowGap);
             Rect contentRect = new Rect(0, 0, viewRect.width - 20f, contentH);
 
-            // first open: scroll to the currently active entry
+            // first open: seed the highlight to the active resolution and scroll it into view
             if (!_menuScrollInit)
             {
                 _menuScrollInit = true;
                 _menuScroll = Vector2.zero;
+                if (_pickW <= 0) { _pickW = Screen.width; _pickH = Screen.height; }
                 for (int v = 0; v < visible.Count; v++)
                 {
                     int i = visible[v];
-                    if (RESOLUTIONS[i * 2] == Screen.width && RESOLUTIONS[i * 2 + 1] == Screen.height)
+                    if (RESOLUTIONS[i * 2] == _pickW && RESOLUTIONS[i * 2 + 1] == _pickH)
                     {
                         _menuScroll.y = Mathf.Max(0f, v * (rowH + rowGap) - viewRect.height * 0.5f);
                         break;
@@ -736,14 +750,24 @@ namespace TetrisArcade
             {
                 int i = visible[v];
                 int w = RESOLUTIONS[i * 2], h = RESOLUTIONS[i * 2 + 1];
-                bool current = (w == Screen.width && h == Screen.height);
-                string label = w + " x " + h + "  (" + AspectLabel(w, h) + ")" + (current ? "  (current)" : "");
-                if (current) GUI.backgroundColor = accent;
+                bool sel = (w == _pickW && h == _pickH);
+                string label = w + " x " + h + "  (" + AspectLabel(w, h) + ")" + (sel ? "   ✓ current" : "");
+                if (sel) GUI.backgroundColor = accent;
                 if (GUI.Button(new Rect(0, v * (rowH + rowGap), contentRect.width, rowH), label, _menuBtn))
                     ApplyPreset(w, h);
-                if (current) GUI.backgroundColor = Color.white;
+                if (sel) GUI.backgroundColor = Color.white;
             }
             GUI.EndScrollView();
+
+            // transient "Applied" confirmation above CLOSE
+            if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _pickW > 0)
+            {
+                var prev = _stat.normal.textColor;
+                _stat.normal.textColor = accent;
+                GUI.Label(new Rect(px, py + panelH - closeH - msgH - pad, panelW, msgH),
+                          "Applied  " + _pickW + " x " + _pickH, _stat);
+                _stat.normal.textColor = prev;
+            }
 
             if (GUI.Button(new Rect(px + pad, py + panelH - closeH - pad, panelW - pad * 2f, closeH), "CLOSE", _menuClose))
                 showSettings = false;
