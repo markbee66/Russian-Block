@@ -48,6 +48,22 @@ namespace TetrisArcade
 
         static readonly int[] LINE_POINTS = { 0, 40, 100, 300, 1200 };
 
+        // ---- Resolution presets (flat w,h pairs; menu filters to <= desktop size) ----
+        static readonly int[] RESOLUTIONS = {
+            640,360, 640,480, 720,480, 800,600, 960,540, 1024,576, 1024,600, 1024,768,
+            1152,648, 1152,720, 1152,864, 1176,664, 1280,720, 1280,768, 1280,800, 1280,960,
+            1280,1024, 1360,768, 1366,768, 1440,810, 1440,900, 1440,1080, 1536,864, 1600,900,
+            1600,1024, 1600,1200, 1680,1050, 1768,992, 1920,1080, 1920,1200, 1920,1440,
+            2048,1080, 2048,1152, 2048,1280, 2048,1536, 2160,1080, 2160,1200, 2304,1296,
+            2304,1440, 2560,1080, 2560,1440, 2560,1600, 2560,1920, 2880,1620, 2880,1800,
+            3000,2000, 3072,1728, 3072,1920, 3200,1800, 3200,2000, 3200,2400, 3440,1440,
+            3456,2160, 3840,1080, 3840,1600, 3840,2160, 3840,2400, 4096,2160, 4096,2304,
+            4096,2560, 5120,1440, 5120,2160, 5120,2880, 5120,3200, 5760,1080, 5760,1200,
+            5760,2160, 6016,3384, 6144,3456, 7680,2160, 7680,4320, 8192,4320
+        };
+        const string PrefResW = "TetrisArcade.ResW";
+        const string PrefResH = "TetrisArcade.ResH";
+
         // ---- Palette ----
         readonly Color bgColor    = new Color(0.03f, 0.03f, 0.06f);
         readonly Color wellColor  = new Color(0.07f, 0.07f, 0.11f);
@@ -89,6 +105,7 @@ namespace TetrisArcade
         {
             Application.runInBackground = true;
             square = MakeSquareSprite();
+            LoadResolution();
             lastScreenW = Screen.width; lastScreenH = Screen.height;
             ConfigureLayout();
             SetupCamera();
@@ -137,8 +154,10 @@ namespace TetrisArcade
             if (portrait)
             {
                 // Board centered; NEXT + stats above, controls below.
+                // Extra headroom above the stats keeps them clear of the
+                // screen-space SETTINGS button in the top-right corner.
                 previewOrigin = new Vector2(0f, 20.5f);
-                FitCamera(-1f, 10f, -4.5f, 25f, aspect);
+                FitCamera(-1f, 10f, -4.5f, 26.8f, aspect);
             }
             else
             {
@@ -360,6 +379,7 @@ namespace TetrisArcade
         void Update()
         {
             CheckLayout();
+            if (showSettings) { Redraw(); return; }
 
             ReadInput(out bool left, out bool right, out bool cw, out bool ccw,
                       out bool downHeld, out bool hard, out bool doPause, out bool restart,
@@ -504,10 +524,18 @@ namespace TetrisArcade
         // ============================ HUD ============================
 
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
+        GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose;
+        bool showSettings;
+        Vector2 _menuScroll;
+        bool _menuScrollInit;
+        int _pickW = -1, _pickH = -1;   // last selected resolution (drives the highlight immediately)
+        float _appliedAt = -10f;        // realtime of the last apply, for the transient "Applied" toast
+        Texture2D _whiteTex;
 
         void OnGUI()
         {
             if (cam == null) return;
+            HandleSettingsHotkey();
             int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
 
             if (_label == null)
@@ -519,6 +547,14 @@ namespace TetrisArcade
                 _small = new GUIStyle { fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleLeft };
                 _stat  = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 _smallC = new GUIStyle { fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleCenter };
+                // Interactive styles must derive from the default skin so buttons keep a visible background
+                _gearBtn  = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+                _menuBtn  = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleCenter };
+                _menuClose = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+                _menuBox  = new GUIStyle(GUI.skin.box);
+                _menuTitle = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                _whiteTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+                _whiteTex.SetPixel(0, 0, Color.white); _whiteTex.Apply();
             }
             _label.fontSize = fs; _label.normal.textColor = new Color(0.6f, 0.75f, 0.85f);
             _value.fontSize = Mathf.RoundToInt(fs * 1.4f); _value.normal.textColor = Color.white;
@@ -568,19 +604,182 @@ namespace TetrisArcade
             {
                 WLabel(4.5f, 10.5f, "PAUSED", _big, 400);
             }
+
+            if (!showSettings) DrawSettingsButton();
+            else               DrawSettingsPanel();
         }
 
         void WLabel(float wx, float wy, string text, GUIStyle style, float width)
         {
             Vector3 sp = cam.WorldToScreenPoint(new Vector3(wx, wy, 0));
-            var r = new Rect(sp.x - width * 0.5f + (style.alignment == TextAnchor.MiddleLeft ? width * 0.5f : 0),
-                             Screen.height - sp.y - style.fontSize, width, style.fontSize * 1.8f);
+            // Snap to whole pixels: dynamic-font glyphs drawn at fractional positions get
+            // bilinear-sampled from the font atlas and look blurry. An even rect height keeps
+            // the vertically-centered baseline on a pixel too.
+            float h = 2f * Mathf.Round(style.fontSize * 0.9f);
+            float rx = Mathf.Round(sp.x - width * 0.5f + (style.alignment == TextAnchor.MiddleLeft ? width * 0.5f : 0));
+            float ry = Mathf.Round(Screen.height - sp.y - style.fontSize);
+            var r = new Rect(rx, ry, width, h);
             // draw a subtle shadow for readability
             var prev = style.normal.textColor;
             style.normal.textColor = new Color(0, 0, 0, 0.6f);
-            GUI.Label(new Rect(r.x + 1, r.y + 1, r.width, r.height), text, style);
+            GUI.Label(new Rect(rx + 1f, ry + 1f, width, h), text, style);
             style.normal.textColor = prev;
             GUI.Label(r, text, style);
+        }
+
+        // ============================ SETTINGS MENU ============================
+
+        void LoadResolution()
+        {
+            if (!PlayerPrefs.HasKey(PrefResW) || !PlayerPrefs.HasKey(PrefResH)) return;
+            int w = PlayerPrefs.GetInt(PrefResW), h = PlayerPrefs.GetInt(PrefResH);
+            if (w <= 0 || h <= 0) return;
+            if (Screen.width == w && Screen.height == h) return;
+            Screen.SetResolution(w, h, FullScreenMode.Windowed);
+        }
+
+        void SaveResolution(int w, int h)
+        {
+            PlayerPrefs.SetInt(PrefResW, w);
+            PlayerPrefs.SetInt(PrefResH, h);
+            PlayerPrefs.Save();
+        }
+
+        void ApplyPreset(int w, int h)
+        {
+            // Windowed is the only mode where the OS window actually takes the requested shape;
+            // borderless fullscreen would keep covering the whole monitor regardless.
+            Screen.SetResolution(w, h, FullScreenMode.Windowed);
+            SaveResolution(w, h);
+            // Move the highlight immediately and show a confirmation. Screen.width/height may not
+            // update this frame (and never updates inside the Editor Game view), so the UI must not
+            // wait on it for feedback.
+            _pickW = w; _pickH = h;
+            _appliedAt = Time.realtimeSinceStartup;
+        }
+
+        static string AspectLabel(int w, int h)
+        {
+            int a = w, b = h;
+            while (b != 0) { int t = a % b; a = b; b = t; }
+            return (w / a) + ":" + (h / a);
+        }
+
+        void HandleSettingsHotkey()
+        {
+            var e = Event.current;
+            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
+            {
+                showSettings = !showSettings;
+                _menuScrollInit = false;
+                e.Use();
+            }
+        }
+
+        void DrawSettingsButton()
+        {
+            float bh = Mathf.Max(26f, Screen.height * 0.045f);
+            float bw = bh * 3.4f;
+            _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.42f);
+            if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "SETTINGS", _gearBtn))
+            {
+                showSettings = true;
+                _menuScrollInit = false;
+            }
+        }
+
+        void DrawSettingsPanel()
+        {
+            // dim everything behind the panel
+            GUI.color = new Color(0f, 0f, 0f, 0.75f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
+            GUI.color = Color.white;
+
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
+            _menuBtn.fontSize = fs;
+            // Font size scales with Screen.height, so the panel width must scale with it too —
+            // a fixed pixel cap clips row labels at high resolutions. Size off the widest
+            // possible row ("8192 x 4320  (16:9)   ✓ current") plus padding/scrollbar room.
+            float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
+            float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 320f, Screen.width * 0.92f));
+            float panelH = Mathf.Round(Screen.height * 0.8f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+
+            GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
+
+            _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.5f);
+            _menuTitle.normal.textColor = accent;
+            float titleH = fs * 2.2f;
+            GUI.Label(new Rect(px, py + fs * 0.4f, panelW, titleH), "RESOLUTION", _menuTitle);
+
+            // subtitle / instruction line
+            float subH = fs * 1.5f;
+            GUI.Label(new Rect(px, py + titleH, panelW, subH), "Tap a resolution to apply", _smallC);
+
+            float closeH = fs * 2.2f;
+            float msgH = fs * 1.6f;
+            float pad = fs * 0.8f;
+            float rowH = fs * 2.0f;
+            float rowGap = fs * 0.3f;
+            _menuClose.fontSize = fs;
+
+            // resolutions that fit on the current desktop
+            int deskW = Screen.currentResolution.width, deskH = Screen.currentResolution.height;
+            int count = RESOLUTIONS.Length / 2;
+            var visible = new List<int>(count);
+            for (int i = 0; i < count; i++)
+                if (RESOLUTIONS[i * 2] <= deskW && RESOLUTIONS[i * 2 + 1] <= deskH)
+                    visible.Add(i);
+
+            float listTop = py + titleH + subH;
+            Rect viewRect = new Rect(px + pad, listTop, panelW - pad * 2f, panelH - titleH - subH - closeH - msgH - pad * 2f);
+            float contentH = visible.Count * (rowH + rowGap);
+            Rect contentRect = new Rect(0, 0, viewRect.width - 20f, contentH);
+
+            // first open: seed the highlight to the active resolution and scroll it into view
+            if (!_menuScrollInit)
+            {
+                _menuScrollInit = true;
+                _menuScroll = Vector2.zero;
+                if (_pickW <= 0) { _pickW = Screen.width; _pickH = Screen.height; }
+                for (int v = 0; v < visible.Count; v++)
+                {
+                    int i = visible[v];
+                    if (RESOLUTIONS[i * 2] == _pickW && RESOLUTIONS[i * 2 + 1] == _pickH)
+                    {
+                        _menuScroll.y = Mathf.Max(0f, v * (rowH + rowGap) - viewRect.height * 0.5f);
+                        break;
+                    }
+                }
+            }
+
+            _menuScroll = GUI.BeginScrollView(viewRect, _menuScroll, contentRect);
+            for (int v = 0; v < visible.Count; v++)
+            {
+                int i = visible[v];
+                int w = RESOLUTIONS[i * 2], h = RESOLUTIONS[i * 2 + 1];
+                bool sel = (w == _pickW && h == _pickH);
+                string label = w + " x " + h + "  (" + AspectLabel(w, h) + ")" + (sel ? "   ✓ current" : "");
+                if (sel) GUI.backgroundColor = accent;
+                if (GUI.Button(new Rect(0, v * (rowH + rowGap), contentRect.width, rowH), label, _menuBtn))
+                    ApplyPreset(w, h);
+                if (sel) GUI.backgroundColor = Color.white;
+            }
+            GUI.EndScrollView();
+
+            // transient "Applied" confirmation above CLOSE
+            if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _pickW > 0)
+            {
+                var prev = _stat.normal.textColor;
+                _stat.normal.textColor = accent;
+                GUI.Label(new Rect(px, py + panelH - closeH - msgH - pad, panelW, msgH),
+                          "Applied  " + _pickW + " x " + _pickH, _stat);
+                _stat.normal.textColor = prev;
+            }
+
+            if (GUI.Button(new Rect(px + pad, py + panelH - closeH - pad, panelW - pad * 2f, closeH), "CLOSE", _menuClose))
+                showSettings = false;
         }
     }
 }
