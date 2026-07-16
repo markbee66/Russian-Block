@@ -791,7 +791,7 @@ namespace TetrisArcade
             float titleH = fs * 2.2f, closeH = fs * 2.2f, msgH = fs * 1.6f;
             float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
             float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 360f, Screen.width * 0.94f));
-            float contentH = titleH + gap + 4f * (rowH + gap) + msgH + closeH + pad * 2f;
+            float contentH = titleH + gap + 5f * (rowH + gap) + msgH + closeH + pad * 2f;
             float panelH = Mathf.Round(contentH);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -823,6 +823,16 @@ namespace TetrisArcade
             int dFps = Stepper(innerX, y, innerW, rowH, gap, "FPS", _fpsCap < 0 ? "Unlimited" : _fpsCap + " fps", true);
             if (dFps != 0) ApplyFps(FPS_VALUES[(fi + dFps + FPS_VALUES.Length) % FPS_VALUES.Length]);
             y += rowH + gap;
+
+            // FPS custom entry (type any value, 10-1000) — aligned under the FPS stepper
+            {
+                float vx = innerX + innerW * 0.24f + gap, vw = innerW - innerW * 0.24f - gap;
+                float setW = Mathf.Round(vw * 0.28f);
+                _fpsInput = GUI.TextField(new Rect(vx, y, vw - setW - gap, rowH), _fpsInput, 5, _menuField);
+                if (GUI.Button(new Rect(vx + vw - setW, y, setW, rowH), "Set", _menuBtn))
+                    if (int.TryParse(_fpsInput, out int cv)) ApplyFps(Mathf.Clamp(cv, 10, 1000));
+                y += rowH + gap;
+            }
 
             // RES (windowed only; cycles the desktop-filtered list)
             int ri = -1;
