@@ -530,6 +530,9 @@ namespace TetrisArcade
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
         GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose, _menuField;
         bool showSettings;
+        bool _resOpen;                  // RES dropdown expanded?
+        Vector2 _resScroll;
+        bool _resSeeded;                // scrolled-to-current on open?
         int _pickW = -1, _pickH = -1;   // last selected resolution (drives the highlight immediately)
         float _appliedAt = -10f;        // realtime of the last apply, for the transient "Applied" toast
         string _appliedMsg = "";        // text shown in that toast
@@ -755,6 +758,7 @@ namespace TetrisArcade
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 showSettings = !showSettings;
+                _resOpen = false;
                 e.Use();
             }
         }
@@ -765,7 +769,10 @@ namespace TetrisArcade
             float bw = bh * 3.4f;
             _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.42f);
             if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "SETTINGS", _gearBtn))
+            {
                 showSettings = true;
+                _resOpen = false;
+            }
         }
 
         static readonly int[] FPS_VALUES = { -1, 30, 60, 90, 120, 144, 165, 240 };
@@ -787,12 +794,13 @@ namespace TetrisArcade
                 if (RESOLUTIONS[i * 2] <= deskW && RESOLUTIONS[i * 2 + 1] <= deskH)
                     visible.Add(i);
 
-            float pad = fs * 0.8f, rowH = fs * 2.0f, gap = fs * 0.5f;
+            float pad = fs * 0.8f, rowH = fs * 2.0f, gap = fs * 0.5f, optH = fs * 1.9f;
             float titleH = fs * 2.2f, closeH = fs * 2.2f, msgH = fs * 1.6f;
+            float listH = Mathf.Min(visible.Count, 7) * optH;
             float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
             float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 360f, Screen.width * 0.94f));
-            float contentH = titleH + gap + 5f * (rowH + gap) + msgH + closeH + pad * 2f;
-            float panelH = Mathf.Round(contentH);
+            float contentH = titleH + gap + 5f * (rowH + gap) + (_resOpen ? listH : 0f) + msgH + closeH + pad * 2f;
+            float panelH = Mathf.Round(Mathf.Min(contentH, Screen.height * 0.94f));
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
             float innerX = px + pad, innerW = panelW - pad * 2f;
@@ -834,19 +842,8 @@ namespace TetrisArcade
                 y += rowH + gap;
             }
 
-            // RES (windowed only; cycles the desktop-filtered list)
-            int ri = -1;
-            for (int v = 0; v < visible.Count; v++)
-                if (RESOLUTIONS[visible[v] * 2] == _pickW && RESOLUTIONS[visible[v] * 2 + 1] == _pickH) { ri = v; break; }
-            string resCur = !windowed ? "windowed only" : (_pickW > 0 ? _pickW + " x " + _pickH : "—");
-            int dRes = Stepper(innerX, y, innerW, rowH, gap, "RES", resCur, windowed);
-            if (dRes != 0 && windowed && visible.Count > 0)
-            {
-                int ni = ((ri < 0 ? 0 : ri) + dRes + visible.Count) % visible.Count;
-                int idx = visible[ni];
-                ApplyPreset(RESOLUTIONS[idx * 2], RESOLUTIONS[idx * 2 + 1]);
-            }
-            y += rowH + gap;
+            // RES (windowed only; dropdown list picker)
+            y = DrawResDropdown(innerX, y, innerW, rowH, optH, gap, windowed, visible, listH);
 
             // transient confirmation above CLOSE
             if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _appliedMsg.Length > 0)
@@ -875,6 +872,52 @@ namespace TetrisArcade
             if (GUI.Button(new Rect(vx + vw - aw, y, aw, rowH), "►", _menuBtn)) d = 1;
             GUI.enabled = true;
             return d;
+        }
+
+        // RES row: a dropdown whose scrollable list lets you pick any resolution in one click.
+        float DrawResDropdown(float x, float y, float w, float rowH, float optH, float gap,
+                              bool windowed, List<int> visible, float listH)
+        {
+            float labelW = w * 0.24f, ox = x + labelW + gap, ow = w - labelW - gap;
+            GUI.Label(new Rect(x, y, labelW, rowH), "RES", _label);
+            string cur = !windowed ? "windowed only" : (_pickW > 0 ? _pickW + " x " + _pickH : "—");
+            GUI.enabled = windowed;
+            if (GUI.Button(new Rect(ox, y, ow, rowH), cur + (_resOpen ? "   ▲" : "   ▼"), _menuBtn))
+            {
+                _resOpen = !_resOpen;
+                if (_resOpen) _resSeeded = false;
+            }
+            y += rowH + gap;
+            if (_resOpen && windowed)
+            {
+                Rect view = new Rect(ox, y, ow, listH);
+                Rect content = new Rect(0, 0, ow - 20f, visible.Count * optH);
+                if (!_resSeeded)
+                {
+                    _resSeeded = true;
+                    _resScroll = Vector2.zero;
+                    if (_pickW <= 0) { _pickW = Screen.width; _pickH = Screen.height; }
+                    for (int v = 0; v < visible.Count; v++)
+                        if (RESOLUTIONS[visible[v] * 2] == _pickW && RESOLUTIONS[visible[v] * 2 + 1] == _pickH)
+                        { _resScroll.y = Mathf.Max(0f, v * optH - listH * 0.5f); break; }
+                }
+                _resScroll = GUI.BeginScrollView(view, _resScroll, content);
+                for (int v = 0; v < visible.Count; v++)
+                {
+                    int i = visible[v];
+                    int w2 = RESOLUTIONS[i * 2], h2 = RESOLUTIONS[i * 2 + 1];
+                    bool sel = (w2 == _pickW && h2 == _pickH);
+                    string label = w2 + " x " + h2 + "  (" + AspectLabel(w2, h2) + ")" + (sel ? "   ✓" : "");
+                    if (sel) GUI.backgroundColor = accent;
+                    if (GUI.Button(new Rect(0, v * optH, content.width, optH - 2f), label, _menuBtn))
+                    { ApplyPreset(w2, h2); _resOpen = false; }
+                    if (sel) GUI.backgroundColor = Color.white;
+                }
+                GUI.EndScrollView();
+                y += listH;
+            }
+            GUI.enabled = true;
+            return y;
         }
     }
 }
