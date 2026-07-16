@@ -696,7 +696,12 @@ namespace TetrisArcade
             GUI.color = Color.white;
 
             int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
-            float panelW = Mathf.Round(Mathf.Min(Screen.width * 0.85f, 560f));
+            _menuBtn.fontSize = fs;
+            // Font size scales with Screen.height, so the panel width must scale with it too —
+            // a fixed pixel cap clips row labels at high resolutions. Size off the widest
+            // possible row ("8192 x 4320  (16:9)   ✓ current") plus padding/scrollbar room.
+            float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
+            float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 320f, Screen.width * 0.92f));
             float panelH = Mathf.Round(Screen.height * 0.8f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -717,7 +722,6 @@ namespace TetrisArcade
             float pad = fs * 0.8f;
             float rowH = fs * 2.0f;
             float rowGap = fs * 0.3f;
-            _menuBtn.fontSize = fs;
             _menuClose.fontSize = fs;
 
             // resolutions that fit on the current desktop
