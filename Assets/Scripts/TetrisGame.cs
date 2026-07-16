@@ -530,9 +530,6 @@ namespace TetrisArcade
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
         GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose, _menuField;
         bool showSettings;
-        Vector2 _menuScroll;
-        bool _menuScrollInit;
-        int _dropOpen = -1;             // which dropdown is expanded: 0=mode 1=ui 2=fps 3=res, -1 none
         int _pickW = -1, _pickH = -1;   // last selected resolution (drives the highlight immediately)
         float _appliedAt = -10f;        // realtime of the last apply, for the transient "Applied" toast
         string _appliedMsg = "";        // text shown in that toast
@@ -758,8 +755,6 @@ namespace TetrisArcade
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
                 showSettings = !showSettings;
-                _menuScrollInit = false;
-                _dropOpen = -1;
                 e.Use();
             }
         }
@@ -770,11 +765,7 @@ namespace TetrisArcade
             float bw = bh * 3.4f;
             _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.42f);
             if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "SETTINGS", _gearBtn))
-            {
                 showSettings = true;
-                _menuScrollInit = false;
-                _dropOpen = -1;
-            }
         }
 
         static readonly int[] FPS_VALUES = { -1, 30, 60, 90, 120, 144, 165, 240 };
@@ -796,20 +787,12 @@ namespace TetrisArcade
                 if (RESOLUTIONS[i * 2] <= deskW && RESOLUTIONS[i * 2 + 1] <= deskH)
                     visible.Add(i);
 
-            float pad = fs * 0.8f, rowH = fs * 2.0f, gap = fs * 0.35f, optH = fs * 1.9f;
+            float pad = fs * 0.8f, rowH = fs * 2.0f, gap = fs * 0.5f;
             float titleH = fs * 2.2f, closeH = fs * 2.2f, msgH = fs * 1.6f;
             float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
             float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 360f, Screen.width * 0.94f));
-
-            // Panel height grows to fit whichever dropdown is expanded (only one at a time).
-            float resListH = Mathf.Min(visible.Count, 7) * optH;
-            float extra = 0f;
-            if (_dropOpen == 0) extra = 2 * optH;
-            else if (_dropOpen == 1) extra = UI_SCALES.Length * optH;
-            else if (_dropOpen == 2) extra = FPS_VALUES.Length * optH + rowH + gap;   // presets + custom row
-            else if (_dropOpen == 3) extra = resListH;
-            float contentH = titleH + gap + 4f * (rowH + gap) + extra + msgH + closeH + pad * 2f;
-            float panelH = Mathf.Round(Mathf.Min(contentH, Screen.height * 0.94f));
+            float contentH = titleH + gap + 4f * (rowH + gap) + msgH + closeH + pad * 2f;
+            float panelH = Mathf.Round(contentH);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
             float innerX = px + pad, innerW = panelW - pad * 2f;
@@ -822,25 +805,38 @@ namespace TetrisArcade
             GUI.Label(new Rect(px, y, panelW, titleH), "SETTINGS", _menuTitle);
             y += titleH + gap;
 
-            // MODE
-            int uiIdx = 1;
-            for (int i = 0; i < UI_SCALES.Length; i++) if (Mathf.Approximately(UI_SCALES[i], _uiScale)) uiIdx = i;
-            y = Accordion(0, innerX, y, innerW, rowH, optH, gap, "MODE",
-                          windowed ? "Windowed" : "Borderless",
-                          new[] { "Borderless", "Windowed" }, windowed ? 1 : 0, true,
-                          i => ApplyDisplayMode(i == 0 ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed));
+            // MODE (2 options -> either arrow toggles)
+            if (Stepper(innerX, y, innerW, rowH, gap, "MODE", windowed ? "Windowed" : "Borderless", true) != 0)
+                ApplyDisplayMode(windowed ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+            y += rowH + gap;
 
             // UI SIZE
-            y = Accordion(1, innerX, y, innerW, rowH, optH, gap, "UI",
-                          Mathf.RoundToInt(_uiScale * 100f) + "%",
-                          new[] { "75%", "100%", "125%", "150%", "200%" }, uiIdx, true,
-                          i => ApplyUIScale(UI_SCALES[i]));
+            int uiIdx = 1;
+            for (int i = 0; i < UI_SCALES.Length; i++) if (Mathf.Approximately(UI_SCALES[i], _uiScale)) uiIdx = i;
+            int dUi = Stepper(innerX, y, innerW, rowH, gap, "UI", Mathf.RoundToInt(_uiScale * 100f) + "%", true);
+            if (dUi != 0) ApplyUIScale(UI_SCALES[(uiIdx + dUi + UI_SCALES.Length) % UI_SCALES.Length]);
+            y += rowH + gap;
 
-            // FPS (presets + custom entry)
-            y = DrawFpsAccordion(2, innerX, y, innerW, rowH, optH, gap);
+            // FPS (cycles preset caps)
+            int fi = 0;
+            for (int i = 0; i < FPS_VALUES.Length; i++) if (FPS_VALUES[i] == _fpsCap) fi = i;
+            int dFps = Stepper(innerX, y, innerW, rowH, gap, "FPS", _fpsCap < 0 ? "Unlimited" : _fpsCap + " fps", true);
+            if (dFps != 0) ApplyFps(FPS_VALUES[(fi + dFps + FPS_VALUES.Length) % FPS_VALUES.Length]);
+            y += rowH + gap;
 
-            // RESOLUTION (windowed only; the scrollable picker lives inside the dropdown)
-            y = DrawResAccordion(3, innerX, y, innerW, rowH, optH, gap, windowed, visible, resListH);
+            // RES (windowed only; cycles the desktop-filtered list)
+            int ri = -1;
+            for (int v = 0; v < visible.Count; v++)
+                if (RESOLUTIONS[visible[v] * 2] == _pickW && RESOLUTIONS[visible[v] * 2 + 1] == _pickH) { ri = v; break; }
+            string resCur = !windowed ? "windowed only" : (_pickW > 0 ? _pickW + " x " + _pickH : "—");
+            int dRes = Stepper(innerX, y, innerW, rowH, gap, "RES", resCur, windowed);
+            if (dRes != 0 && windowed && visible.Count > 0)
+            {
+                int ni = ((ri < 0 ? 0 : ri) + dRes + visible.Count) % visible.Count;
+                int idx = visible[ni];
+                ApplyPreset(RESOLUTIONS[idx * 2], RESOLUTIONS[idx * 2 + 1]);
+            }
+            y += rowH + gap;
 
             // transient confirmation above CLOSE
             if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _appliedMsg.Length > 0)
@@ -855,107 +851,20 @@ namespace TetrisArcade
                 showSettings = false;
         }
 
-        // Collapsed dropdown row that expands its options inline (accordion). Calls onPick(i) on selection.
-        float Accordion(int id, float x, float y, float w, float rowH, float optH, float gap,
-                        string label, string current, string[] opts, int activeIdx, bool enabled,
-                        System.Action<int> onPick)
+        // A "◄  value  ►" selector row. Returns -1 (previous), +1 (next), or 0 (no click).
+        int Stepper(float x, float y, float w, float rowH, float gap, string label, string current, bool enabled)
         {
-            float labelW = w * 0.24f, ox = x + labelW + gap, ow = w - labelW - gap;
+            float labelW = w * 0.24f;
             GUI.Label(new Rect(x, y, labelW, rowH), label, _label);
-            bool open = _dropOpen == id;
+            float vx = x + labelW + gap, vw = w - labelW - gap;
+            float aw = Mathf.Round(Mathf.Min(rowH, vw * 0.22f));
+            int d = 0;
             GUI.enabled = enabled;
-            if (GUI.Button(new Rect(ox, y, ow, rowH), current + (open ? "   ▲" : "   ▼"), _menuBtn))
-                _dropOpen = open ? -1 : id;
-            y += rowH + gap;
-            if (open && enabled)
-            {
-                for (int i = 0; i < opts.Length; i++)
-                {
-                    if (i == activeIdx) GUI.backgroundColor = accent;
-                    if (GUI.Button(new Rect(ox, y, ow, optH - 2f), opts[i], _menuBtn)) { onPick(i); _dropOpen = -1; }
-                    if (i == activeIdx) GUI.backgroundColor = Color.white;
-                    y += optH;
-                }
-            }
+            if (GUI.Button(new Rect(vx, y, aw, rowH), "◄", _menuBtn)) d = -1;
+            GUI.Label(new Rect(vx + aw, y, vw - 2f * aw, rowH), current, _menuField);
+            if (GUI.Button(new Rect(vx + vw - aw, y, aw, rowH), "►", _menuBtn)) d = 1;
             GUI.enabled = true;
-            return y;
-        }
-
-        float DrawFpsAccordion(int id, float x, float y, float w, float rowH, float optH, float gap)
-        {
-            float labelW = w * 0.24f, ox = x + labelW + gap, ow = w - labelW - gap;
-            GUI.Label(new Rect(x, y, labelW, rowH), "FPS", _label);
-            bool open = _dropOpen == id;
-            string cur = _fpsCap < 0 ? "Unlimited" : _fpsCap + " fps";
-            if (GUI.Button(new Rect(ox, y, ow, rowH), cur + (open ? "   ▲" : "   ▼"), _menuBtn))
-                _dropOpen = open ? -1 : id;
-            y += rowH + gap;
-            if (open)
-            {
-                for (int i = 0; i < FPS_VALUES.Length; i++)
-                {
-                    int val = FPS_VALUES[i];
-                    if (_fpsCap == val) GUI.backgroundColor = accent;
-                    if (GUI.Button(new Rect(ox, y, ow, optH - 2f), val < 0 ? "Unlimited" : val.ToString(), _menuBtn))
-                    { ApplyFps(val); _dropOpen = -1; }
-                    if (_fpsCap == val) GUI.backgroundColor = Color.white;
-                    y += optH;
-                }
-                // custom entry
-                float fw = ow * 0.5f;
-                _fpsInput = GUI.TextField(new Rect(ox, y, fw, rowH), _fpsInput, 5, _menuField);
-                if (GUI.Button(new Rect(ox + fw + gap, y, ow - fw - gap, rowH), "Set custom", _menuBtn))
-                    if (int.TryParse(_fpsInput, out int v)) { ApplyFps(Mathf.Clamp(v, 10, 1000)); _dropOpen = -1; }
-                y += rowH + gap;
-            }
-            return y;
-        }
-
-        float DrawResAccordion(int id, float x, float y, float w, float rowH, float optH, float gap,
-                               bool windowed, List<int> visible, float listH)
-        {
-            float labelW = w * 0.24f, ox = x + labelW + gap, ow = w - labelW - gap;
-            GUI.Label(new Rect(x, y, labelW, rowH), "RES", _label);
-            bool open = _dropOpen == id;
-            string cur = _pickW > 0 ? _pickW + " x " + _pickH : "—";
-            if (!windowed) cur += "  (windowed only)";
-            GUI.enabled = windowed;
-            if (GUI.Button(new Rect(ox, y, ow, rowH), cur + (open ? "   ▲" : "   ▼"), _menuBtn))
-            {
-                _dropOpen = open ? -1 : id;
-                if (_dropOpen == id) _menuScrollInit = false;
-            }
-            y += rowH + gap;
-            if (open && windowed)
-            {
-                Rect view = new Rect(ox, y, ow, listH);
-                Rect content = new Rect(0, 0, ow - 20f, visible.Count * optH);
-                if (!_menuScrollInit)
-                {
-                    _menuScrollInit = true;
-                    _menuScroll = Vector2.zero;
-                    if (_pickW <= 0) { _pickW = Screen.width; _pickH = Screen.height; }
-                    for (int v = 0; v < visible.Count; v++)
-                        if (RESOLUTIONS[visible[v] * 2] == _pickW && RESOLUTIONS[visible[v] * 2 + 1] == _pickH)
-                        { _menuScroll.y = Mathf.Max(0f, v * optH - listH * 0.5f); break; }
-                }
-                _menuScroll = GUI.BeginScrollView(view, _menuScroll, content);
-                for (int v = 0; v < visible.Count; v++)
-                {
-                    int i = visible[v];
-                    int w2 = RESOLUTIONS[i * 2], h2 = RESOLUTIONS[i * 2 + 1];
-                    bool sel = (w2 == _pickW && h2 == _pickH);
-                    string label = w2 + " x " + h2 + "  (" + AspectLabel(w2, h2) + ")" + (sel ? "   ✓" : "");
-                    if (sel) GUI.backgroundColor = accent;
-                    if (GUI.Button(new Rect(0, v * optH, content.width, optH - 2f), label, _menuBtn))
-                    { ApplyPreset(w2, h2); _dropOpen = -1; }
-                    if (sel) GUI.backgroundColor = Color.white;
-                }
-                GUI.EndScrollView();
-                y += listH;
-            }
-            GUI.enabled = true;
-            return y;
+            return d;
         }
     }
 }
