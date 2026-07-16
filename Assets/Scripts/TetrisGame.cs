@@ -612,12 +612,17 @@ namespace TetrisArcade
         void WLabel(float wx, float wy, string text, GUIStyle style, float width)
         {
             Vector3 sp = cam.WorldToScreenPoint(new Vector3(wx, wy, 0));
-            var r = new Rect(sp.x - width * 0.5f + (style.alignment == TextAnchor.MiddleLeft ? width * 0.5f : 0),
-                             Screen.height - sp.y - style.fontSize, width, style.fontSize * 1.8f);
+            // Snap to whole pixels: dynamic-font glyphs drawn at fractional positions get
+            // bilinear-sampled from the font atlas and look blurry. An even rect height keeps
+            // the vertically-centered baseline on a pixel too.
+            float h = 2f * Mathf.Round(style.fontSize * 0.9f);
+            float rx = Mathf.Round(sp.x - width * 0.5f + (style.alignment == TextAnchor.MiddleLeft ? width * 0.5f : 0));
+            float ry = Mathf.Round(Screen.height - sp.y - style.fontSize);
+            var r = new Rect(rx, ry, width, h);
             // draw a subtle shadow for readability
             var prev = style.normal.textColor;
             style.normal.textColor = new Color(0, 0, 0, 0.6f);
-            GUI.Label(new Rect(r.x + 1, r.y + 1, r.width, r.height), text, style);
+            GUI.Label(new Rect(rx + 1f, ry + 1f, width, h), text, style);
             style.normal.textColor = prev;
             GUI.Label(r, text, style);
         }
@@ -691,10 +696,10 @@ namespace TetrisArcade
             GUI.color = Color.white;
 
             int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
-            float panelW = Mathf.Min(Screen.width * 0.85f, 560f);
-            float panelH = Screen.height * 0.8f;
-            float px = (Screen.width - panelW) * 0.5f;
-            float py = (Screen.height - panelH) * 0.5f;
+            float panelW = Mathf.Round(Mathf.Min(Screen.width * 0.85f, 560f));
+            float panelH = Mathf.Round(Screen.height * 0.8f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
 
             GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
 
