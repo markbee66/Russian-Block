@@ -63,6 +63,10 @@ namespace TetrisArcade
         };
         const string PrefResW = "TetrisArcade.ResW";
         const string PrefResH = "TetrisArcade.ResH";
+        const string PrefMode    = "TetrisArcade.Mode";     // int: 0=Windowed, 1=Borderless (FullScreenWindow)
+        const string PrefUIScale = "TetrisArcade.UIScale";  // float
+        const string PrefFps     = "TetrisArcade.Fps";      // int: -1 = unlimited
+        static readonly float[] UI_SCALES = { 0.75f, 1f, 1.25f, 1.5f, 2f };
 
         // ---- Palette ----
         readonly Color bgColor    = new Color(0.03f, 0.03f, 0.06f);
@@ -105,7 +109,7 @@ namespace TetrisArcade
         {
             Application.runInBackground = true;
             square = MakeSquareSprite();
-            LoadResolution();
+            LoadSettings();
             lastScreenW = Screen.width; lastScreenH = Screen.height;
             ConfigureLayout();
             SetupCamera();
@@ -524,19 +528,24 @@ namespace TetrisArcade
         // ============================ HUD ============================
 
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
-        GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose;
+        GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose, _menuField;
         bool showSettings;
         Vector2 _menuScroll;
         bool _menuScrollInit;
         int _pickW = -1, _pickH = -1;   // last selected resolution (drives the highlight immediately)
         float _appliedAt = -10f;        // realtime of the last apply, for the transient "Applied" toast
+        string _appliedMsg = "";        // text shown in that toast
         Texture2D _whiteTex;
+        FullScreenMode _fsMode;         // initialised from Screen.fullScreenMode in Awake
+        float _uiScale = 1f;            // multiplies all HUD/menu font sizes
+        int _fpsCap = -1;               // -1 = unlimited / engine default (not forced)
+        string _fpsInput = "";          // FPS text-field buffer
 
         void OnGUI()
         {
             if (cam == null) return;
             HandleSettingsHotkey();
-            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
 
             if (_label == null)
             {
@@ -549,8 +558,9 @@ namespace TetrisArcade
                 _smallC = new GUIStyle { fontStyle = FontStyle.Normal, alignment = TextAnchor.MiddleCenter };
                 // Interactive styles must derive from the default skin so buttons keep a visible background
                 _gearBtn  = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
-                _menuBtn  = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleCenter };
+                _menuBtn  = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleCenter, padding = new RectOffset(2, 2, 2, 2) };
                 _menuClose = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+                _menuField = new GUIStyle(GUI.skin.textField) { alignment = TextAnchor.MiddleCenter };
                 _menuBox  = new GUIStyle(GUI.skin.box);
                 _menuTitle = new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 _whiteTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
@@ -629,13 +639,47 @@ namespace TetrisArcade
 
         // ============================ SETTINGS MENU ============================
 
-        void LoadResolution()
+        // Applies every persisted display setting on boot. On a totally fresh install (no keys)
+        // it touches nothing, preserving the default borderless-fullscreen launch (zero regression).
+        void LoadSettings()
         {
-            if (!PlayerPrefs.HasKey(PrefResW) || !PlayerPrefs.HasKey(PrefResH)) return;
-            int w = PlayerPrefs.GetInt(PrefResW), h = PlayerPrefs.GetInt(PrefResH);
-            if (w <= 0 || h <= 0) return;
-            if (Screen.width == w && Screen.height == h) return;
-            Screen.SetResolution(w, h, FullScreenMode.Windowed);
+            // UI scale
+            if (PlayerPrefs.HasKey(PrefUIScale))
+                _uiScale = Mathf.Clamp(PlayerPrefs.GetFloat(PrefUIScale), 0.5f, 2f);
+
+            // Frame-rate cap (only forced if the player set one)
+            if (PlayerPrefs.HasKey(PrefFps))
+            {
+                _fpsCap = PlayerPrefs.GetInt(PrefFps);
+                QualitySettings.vSyncCount = 0;
+                Application.targetFrameRate = _fpsCap;
+            }
+            _fpsInput = _fpsCap > 0 ? _fpsCap.ToString() : "";
+
+            // Display mode: default to whatever the build launched in
+            _fsMode = PlayerPrefs.HasKey(PrefMode) && PlayerPrefs.GetInt(PrefMode) == 1
+                ? FullScreenMode.FullScreenWindow
+                : (PlayerPrefs.HasKey(PrefMode) ? FullScreenMode.Windowed : Screen.fullScreenMode);
+
+            // Resolution: seed the highlight, then apply according to the resolved mode
+            if (PlayerPrefs.HasKey(PrefResW) && PlayerPrefs.HasKey(PrefResH))
+            {
+                int w = PlayerPrefs.GetInt(PrefResW), h = PlayerPrefs.GetInt(PrefResH);
+                if (w > 0 && h > 0) { _pickW = w; _pickH = h; }
+            }
+
+            if (PlayerPrefs.HasKey(PrefMode))
+            {
+                if (_fsMode == FullScreenMode.Windowed && _pickW > 0)
+                    Screen.SetResolution(_pickW, _pickH, FullScreenMode.Windowed);
+                else if (_fsMode == FullScreenMode.FullScreenWindow)
+                    Screen.SetResolution(Screen.currentResolution.width, Screen.currentResolution.height, FullScreenMode.FullScreenWindow);
+            }
+            else if (_pickW > 0 && !(Screen.width == _pickW && Screen.height == _pickH))
+            {
+                // Legacy: a resolution was saved before display-mode existed -> windowed, as before
+                Screen.SetResolution(_pickW, _pickH, FullScreenMode.Windowed);
+            }
         }
 
         void SaveResolution(int w, int h)
@@ -647,14 +691,56 @@ namespace TetrisArcade
 
         void ApplyPreset(int w, int h)
         {
-            // Windowed is the only mode where the OS window actually takes the requested shape;
-            // borderless fullscreen would keep covering the whole monitor regardless.
+            // Reachable only in windowed mode (the list is disabled in borderless).
             Screen.SetResolution(w, h, FullScreenMode.Windowed);
             SaveResolution(w, h);
             // Move the highlight immediately and show a confirmation. Screen.width/height may not
             // update this frame (and never updates inside the Editor Game view), so the UI must not
             // wait on it for feedback.
             _pickW = w; _pickH = h;
+            Toast("Applied  " + w + " x " + h);
+        }
+
+        void ApplyDisplayMode(FullScreenMode m)
+        {
+            _fsMode = m;
+            if (m == FullScreenMode.Windowed)
+            {
+                int w = _pickW > 0 ? _pickW : Screen.width;
+                int h = _pickH > 0 ? _pickH : Screen.height;
+                Screen.SetResolution(w, h, FullScreenMode.Windowed);
+            }
+            else // borderless fullscreen always fills the monitor at desktop resolution
+            {
+                Screen.SetResolution(Screen.currentResolution.width, Screen.currentResolution.height, FullScreenMode.FullScreenWindow);
+            }
+            PlayerPrefs.SetInt(PrefMode, m == FullScreenMode.FullScreenWindow ? 1 : 0);
+            PlayerPrefs.Save();
+            Toast("Display: " + (m == FullScreenMode.FullScreenWindow ? "Borderless" : "Windowed"));
+        }
+
+        void ApplyUIScale(float s)
+        {
+            _uiScale = s;
+            PlayerPrefs.SetFloat(PrefUIScale, s);
+            PlayerPrefs.Save();
+            Toast("UI scale: " + Mathf.RoundToInt(s * 100f) + "%");
+        }
+
+        void ApplyFps(int f)
+        {
+            _fpsCap = f;
+            QualitySettings.vSyncCount = 0;        // vSync would otherwise override the cap
+            Application.targetFrameRate = f;       // -1 = unlimited
+            _fpsInput = f > 0 ? f.ToString() : "";
+            PlayerPrefs.SetInt(PrefFps, f);
+            PlayerPrefs.Save();
+            Toast("FPS: " + (f > 0 ? f.ToString() : "Unlimited"));
+        }
+
+        void Toast(string msg)
+        {
+            _appliedMsg = msg;
             _appliedAt = Time.realtimeSinceStartup;
         }
 
@@ -695,36 +781,68 @@ namespace TetrisArcade
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
             GUI.color = Color.white;
 
-            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f));
-            _menuBtn.fontSize = fs;
-            // Font size scales with Screen.height, so the panel width must scale with it too —
-            // a fixed pixel cap clips row labels at high resolutions. Size off the widest
-            // possible row ("8192 x 4320  (16:9)   ✓ current") plus padding/scrollbar room.
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
+            _menuBtn.fontSize = fs; _menuClose.fontSize = fs; _menuField.fontSize = fs; _label.fontSize = fs;
+            // Size the panel off the widest resolution row so labels never clip at any resolution.
             float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
-            float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 320f, Screen.width * 0.92f));
-            float panelH = Mathf.Round(Screen.height * 0.8f);
+            float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 360f, Screen.width * 0.94f));
+            float panelH = Mathf.Round(Screen.height * 0.86f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+            float pad = fs * 0.8f, rowH = fs * 2.0f, rowGap = fs * 0.35f;
+            float titleH = fs * 2.2f, closeH = fs * 2.2f, msgH = fs * 1.6f, subH = fs * 1.5f;
+            float innerX = px + pad, innerW = panelW - pad * 2f;
 
             GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
 
             _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.5f);
             _menuTitle.normal.textColor = accent;
-            float titleH = fs * 2.2f;
-            GUI.Label(new Rect(px, py + fs * 0.4f, panelW, titleH), "RESOLUTION", _menuTitle);
 
-            // subtitle / instruction line
-            float subH = fs * 1.5f;
-            GUI.Label(new Rect(px, py + titleH, panelW, subH), "Tap a resolution to apply", _smallC);
+            float y = py + fs * 0.4f;
+            GUI.Label(new Rect(px, y, panelW, titleH), "SETTINGS", _menuTitle);
+            y += titleH + rowGap;
 
-            float closeH = fs * 2.2f;
-            float msgH = fs * 1.6f;
-            float pad = fs * 0.8f;
-            float rowH = fs * 2.0f;
-            float rowGap = fs * 0.3f;
-            _menuClose.fontSize = fs;
+            // --- DISPLAY MODE ---
+            bool windowed = _fsMode == FullScreenMode.Windowed;
+            int modeSel = OptionRow(new Rect(innerX, y, innerW, rowH), "MODE",
+                                    new[] { "Borderless", "Windowed" }, windowed ? 1 : 0);
+            if (modeSel == 0) ApplyDisplayMode(FullScreenMode.FullScreenWindow);
+            else if (modeSel == 1) ApplyDisplayMode(FullScreenMode.Windowed);
+            y += rowH + rowGap;
 
-            // resolutions that fit on the current desktop
+            // --- UI SCALE ---
+            int uiIdx = 1;
+            for (int i = 0; i < UI_SCALES.Length; i++) if (Mathf.Approximately(UI_SCALES[i], _uiScale)) uiIdx = i;
+            int uiSel = OptionRow(new Rect(innerX, y, innerW, rowH), "UI",
+                                  new[] { "75%", "100%", "125%", "150%", "200%" }, uiIdx);
+            if (uiSel >= 0) ApplyUIScale(UI_SCALES[uiSel]);
+            y += rowH + rowGap;
+
+            // --- FRAME RATE (custom entry + quick presets) ---
+            GUI.Label(new Rect(innerX, y, innerW * 0.22f, rowH), "FPS", _label);
+            float cx = innerX + innerW * 0.22f;
+            float cw = (innerW * 0.78f) / 6f;
+            _fpsInput = GUI.TextField(new Rect(cx, y, cw - 3f, rowH), _fpsInput, 5, _menuField);
+            if (GUI.Button(new Rect(cx + cw, y, cw - 3f, rowH), "Set", _menuBtn))
+                if (int.TryParse(_fpsInput, out int v)) ApplyFps(Mathf.Clamp(v, 10, 1000));
+            if (_fpsCap < 0) GUI.backgroundColor = accent;
+            if (GUI.Button(new Rect(cx + cw * 2f, y, cw - 3f, rowH), "Off", _menuBtn)) ApplyFps(-1);
+            GUI.backgroundColor = Color.white;
+            int[] quick = { 60, 120, 144 };
+            for (int i = 0; i < 3; i++)
+            {
+                if (_fpsCap == quick[i]) GUI.backgroundColor = accent;
+                if (GUI.Button(new Rect(cx + cw * (3f + i), y, cw - 3f, rowH), quick[i].ToString(), _menuBtn))
+                    ApplyFps(quick[i]);
+                GUI.backgroundColor = Color.white;
+            }
+            y += rowH + rowGap;
+
+            // --- RESOLUTION (windowed only) ---
+            GUI.Label(new Rect(innerX, y, innerW, subH),
+                      windowed ? "RESOLUTION" : "RESOLUTION  (windowed mode only)", _label);
+            y += subH;
+
             int deskW = Screen.currentResolution.width, deskH = Screen.currentResolution.height;
             int count = RESOLUTIONS.Length / 2;
             var visible = new List<int>(count);
@@ -732,8 +850,8 @@ namespace TetrisArcade
                 if (RESOLUTIONS[i * 2] <= deskW && RESOLUTIONS[i * 2 + 1] <= deskH)
                     visible.Add(i);
 
-            float listTop = py + titleH + subH;
-            Rect viewRect = new Rect(px + pad, listTop, panelW - pad * 2f, panelH - titleH - subH - closeH - msgH - pad * 2f);
+            float listBottom = py + panelH - closeH - msgH - pad;
+            Rect viewRect = new Rect(innerX, y, innerW, Mathf.Max(rowH, listBottom - y));
             float contentH = visible.Count * (rowH + rowGap);
             Rect contentRect = new Rect(0, 0, viewRect.width - 20f, contentH);
 
@@ -754,6 +872,7 @@ namespace TetrisArcade
                 }
             }
 
+            GUI.enabled = windowed;   // resolution picking only makes sense in windowed mode
             _menuScroll = GUI.BeginScrollView(viewRect, _menuScroll, contentRect);
             for (int v = 0; v < visible.Count; v++)
             {
@@ -767,19 +886,38 @@ namespace TetrisArcade
                 if (sel) GUI.backgroundColor = Color.white;
             }
             GUI.EndScrollView();
+            GUI.enabled = true;
 
-            // transient "Applied" confirmation above CLOSE
-            if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _pickW > 0)
+            // transient confirmation above CLOSE
+            if (Time.realtimeSinceStartup - _appliedAt < 2.5f && _appliedMsg.Length > 0)
             {
                 var prev = _stat.normal.textColor;
                 _stat.normal.textColor = accent;
-                GUI.Label(new Rect(px, py + panelH - closeH - msgH - pad, panelW, msgH),
-                          "Applied  " + _pickW + " x " + _pickH, _stat);
+                GUI.Label(new Rect(px, py + panelH - closeH - msgH - pad, panelW, msgH), _appliedMsg, _stat);
                 _stat.normal.textColor = prev;
             }
 
             if (GUI.Button(new Rect(px + pad, py + panelH - closeH - pad, panelW - pad * 2f, closeH), "CLOSE", _menuClose))
                 showSettings = false;
+        }
+
+        // Draws "LABEL  [opt0][opt1]…" in `area`, highlights activeIdx, returns the clicked index or -1.
+        int OptionRow(Rect area, string label, string[] opts, int activeIdx)
+        {
+            float labelW = area.width * 0.22f;
+            GUI.Label(new Rect(area.x, area.y, labelW, area.height), label, _label);
+            float gap = area.height * 0.2f;
+            float bx = area.x + labelW + gap;
+            float bw = (area.width - labelW - gap) / opts.Length;
+            int clicked = -1;
+            for (int i = 0; i < opts.Length; i++)
+            {
+                if (i == activeIdx) GUI.backgroundColor = accent;
+                if (GUI.Button(new Rect(Mathf.Round(bx + i * bw), area.y, bw - 3f, area.height), opts[i], _menuBtn))
+                    clicked = i;
+                if (i == activeIdx) GUI.backgroundColor = Color.white;
+            }
+            return clicked;
         }
     }
 }
