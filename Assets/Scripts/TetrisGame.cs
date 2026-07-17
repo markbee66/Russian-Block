@@ -90,6 +90,7 @@ namespace TetrisArcade
 
         int score, lines, level;
         bool gameOver, paused;
+        bool inMenu = true;         // title screen (START / SETTINGS / QUIT) shown on launch
 
         // ---- Timers ----
         float gravityTimer, lockTimer;
@@ -412,6 +413,12 @@ namespace TetrisArcade
         void Update()
         {
             CheckLayout();
+            if (inMenu)
+            {
+                if (!_inSettings && StartPressed()) { NewGame(); inMenu = false; }
+                Redraw();
+                return;
+            }
             if (showSettings) { Redraw(); return; }
 
             ReadInput(out bool left, out bool right, out bool cw, out bool ccw,
@@ -482,7 +489,7 @@ namespace TetrisArcade
                 for (int y = 0; y < Height; y++)
                     cells[x, y].color = board[x, y] >= 0 ? COLORS[board[x, y]] : emptyCell;
 
-            if (!gameOver)
+            if (!gameOver && !inMenu)
             {
                 // ghost
                 int gy = GhostY();
@@ -509,7 +516,7 @@ namespace TetrisArcade
             for (int x = 0; x < 4; x++)
                 for (int y = 0; y < 4; y++)
                     preview[x, y].color = panelEmpty;
-            if (nextType >= 0)
+            if (nextType >= 0 && !inMenu)
             {
                 var ns = SHAPES[nextType][0];
                 for (int i = 0; i < 4; i++)
@@ -604,6 +611,14 @@ namespace TetrisArcade
             _small.fontSize = Mathf.RoundToInt(fs * 0.85f); _small.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
             _stat.fontSize  = Mathf.RoundToInt(fs * 1.15f); _stat.normal.textColor = Color.white;
             _smallC.fontSize = Mathf.RoundToInt(fs * 0.85f); _smallC.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
+
+            // Title screen replaces the whole in-game HUD until the player presses START.
+            if (inMenu)
+            {
+                if (_inSettings) DrawSettingsPanel();
+                else DrawTitleMenu();
+                return;
+            }
 
             if (portrait)
             {
@@ -801,6 +816,11 @@ namespace TetrisArcade
             var e = Event.current;
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
+                if (inMenu)
+                {
+                    if (_inSettings) { _inSettings = false; _resOpen = false; e.Use(); }
+                    return;   // no pause menu on the title screen
+                }
                 if (showSettings && _inSettings) _inSettings = false;   // settings -> main pause menu
                 else showSettings = !showSettings;                      // open / close the menu
                 _resOpen = false;
@@ -944,8 +964,57 @@ namespace TetrisArcade
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RESTART", _menuClose))
             { NewGame(); Redraw(); showSettings = false; }
             y += btnH + gap;
+            // QUIT here returns to the title screen; only the title's QUIT exits the app.
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
+            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; NewGame(); Redraw(); }
+        }
+
+        // Title screen shown on launch: a big title over START / SETTINGS / QUIT.
+        // Reuses the pause-menu button/box styles so it matches the rest of the UI.
+        void DrawTitleMenu()
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.82f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
+            GUI.color = Color.white;
+
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
+            _menuClose.fontSize = fs;
+
+            float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f, titleH = fs * 3.2f;
+            float panelW = Mathf.Round(Mathf.Clamp(fs * 18f, 320f, Screen.width * 0.9f));
+            string[] items = { "START", "SETTINGS", "QUIT" };
+            float panelH = Mathf.Round(titleH + gap + items.Length * (btnH + gap) + pad * 2f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+            float innerX = px + pad, innerW = panelW - pad * 2f;
+
+            GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
+            _menuTitle.fontSize = Mathf.RoundToInt(fs * 2.0f);
+            _menuTitle.normal.textColor = accent;
+
+            float y = py + pad;
+            GUI.Label(new Rect(px, y, panelW, titleH), "T E T R I S", _menuTitle);
+            y += titleH + gap;
+
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "START", _menuClose))
+            { NewGame(); inMenu = false; Redraw(); }
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
+            { _inSettings = true; _resOpen = false; }
+            y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
                 Application.Quit();
+        }
+
+        // Enter/Return also starts the game from the title screen (buttons still work).
+        bool StartPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var k = Keyboard.current;
+            return k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame);
+#else
+            return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+#endif
         }
 
         // A "◄  value  ►" selector row. Returns -1 (previous), +1 (next), or 0 (no click).
