@@ -110,7 +110,6 @@ namespace TetrisArcade
         AudioSource bgm;
         float _volume = 0.5f;           // music volume, 0..1
 
-
             void Awake()
         {
             Application.runInBackground = true;
@@ -559,7 +558,8 @@ namespace TetrisArcade
 
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
         GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose, _menuField;
-        bool showSettings;
+        bool showSettings;              // pause menu open?
+        bool _inSettings;               // on the settings sub-page (vs the main pause menu)?
         bool _resOpen;                  // RES dropdown expanded?
         Vector2 _resScroll;
         bool _resSeeded;                // scrolled-to-current on open?
@@ -647,7 +647,8 @@ namespace TetrisArcade
             }
 
             if (!showSettings) DrawSettingsButton();
-            else               DrawSettingsPanel();
+            else if (_inSettings) DrawSettingsPanel();
+            else DrawPauseMenu();
         }
 
         void WLabel(float wx, float wy, string text, GUIStyle style, float width)
@@ -800,7 +801,8 @@ namespace TetrisArcade
             var e = Event.current;
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
-                showSettings = !showSettings;
+                if (showSettings && _inSettings) _inSettings = false;   // settings -> main pause menu
+                else showSettings = !showSettings;                      // open / close the menu
                 _resOpen = false;
                 e.Use();
             }
@@ -808,12 +810,13 @@ namespace TetrisArcade
 
         void DrawSettingsButton()
         {
-            float bh = Mathf.Max(26f, Screen.height * 0.045f);
+            float bh = Mathf.Max(40f, Screen.height * 0.07f);
             float bw = bh * 3.4f;
-            _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.42f);
-            if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "SETTINGS", _gearBtn))
+            _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.4f);
+            if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "MENU", _gearBtn))
             {
                 showSettings = true;
+                _inSettings = false;
                 _resOpen = false;
             }
         }
@@ -885,7 +888,7 @@ namespace TetrisArcade
                 y += rowH + gap;
             }
 
-            // VOLUME (music), clamps at 0/100% instead of wrapping
+            // VOLUME (music) — clamps at 0/100% instead of wrapping
             int dVol = Stepper(innerX, y, innerW, rowH, gap, "VOL", Mathf.RoundToInt(_volume * 100f) + "%", true);
             if (dVol != 0) ApplyVolume(_volume + dVol * VolumeStep);
             y += rowH + gap;
@@ -902,8 +905,47 @@ namespace TetrisArcade
                 _stat.normal.textColor = prev;
             }
 
-            if (GUI.Button(new Rect(innerX, py + panelH - closeH - pad, innerW, closeH), "CLOSE", _menuClose))
+            if (GUI.Button(new Rect(innerX, py + panelH - closeH - pad, innerW, closeH), "BACK", _menuClose))
+                _inSettings = false;
+        }
+
+        // Minecraft-style main pause menu: a vertical stack of full-width buttons.
+        void DrawPauseMenu()
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.75f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
+            GUI.color = Color.white;
+
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
+            _menuClose.fontSize = fs;
+
+            float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f, titleH = fs * 2.4f;
+            float panelW = Mathf.Round(Mathf.Clamp(fs * 18f, 320f, Screen.width * 0.9f));
+            string[] items = { "RESUME", "SETTINGS", "RESTART", "QUIT" };
+            float panelH = Mathf.Round(titleH + gap + items.Length * (btnH + gap) + pad * 2f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+            float innerX = px + pad, innerW = panelW - pad * 2f;
+
+            GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
+            _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.6f);
+            _menuTitle.normal.textColor = accent;
+
+            float y = py + pad;
+            GUI.Label(new Rect(px, y, panelW, titleH), "PAUSED", _menuTitle);
+            y += titleH + gap;
+
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RESUME", _menuClose))
                 showSettings = false;
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
+            { _inSettings = true; _resOpen = false; }
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RESTART", _menuClose))
+            { NewGame(); Redraw(); showSettings = false; }
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
+                Application.Quit();
         }
 
         // A "◄  value  ►" selector row. Returns -1 (previous), +1 (next), or 0 (no click).
