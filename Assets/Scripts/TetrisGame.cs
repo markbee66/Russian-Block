@@ -66,7 +66,9 @@ namespace TetrisArcade
         const string PrefMode    = "TetrisArcade.Mode";     // int: 0=Windowed, 1=Borderless (FullScreenWindow)
         const string PrefUIScale = "TetrisArcade.UIScale";  // float
         const string PrefFps     = "TetrisArcade.Fps";      // int: -1 = unlimited
+        const string PrefVolume  = "TetrisArcade.Volume";   // float: 0..1 music volume
         static readonly float[] UI_SCALES = { 0.75f, 1f, 1.25f, 1.5f, 2f };
+        const float VolumeStep = 0.1f;
 
         // ---- Palette ----
         readonly Color bgColor    = new Color(0.03f, 0.03f, 0.06f);
@@ -104,7 +106,11 @@ namespace TetrisArcade
         SpriteRenderer previewBG;
         Sprite square;
 
-        
+        // ---- Audio ----
+        AudioSource bgm;
+        float _volume = 0.5f;           // music volume, 0..1
+
+
             void Awake()
         {
             Application.runInBackground = true;
@@ -114,7 +120,31 @@ namespace TetrisArcade
             ConfigureLayout();
             SetupCamera();
             BuildVisuals();
+            SetupAudio();
             NewGame();
+        }
+
+        // Loads the looping background track from Resources/Music and plays it.
+        void SetupAudio()
+        {
+            // Nothing is audible without an AudioListener; the Tetris scene has none,
+            // so guarantee exactly one exists (on the camera) before playing.
+            if (FindAnyObjectByType<AudioListener>() == null && cam != null)
+                cam.gameObject.AddComponent<AudioListener>();
+
+            var clip = Resources.Load<AudioClip>("Music/俄羅斯方塊背景音樂1");
+            if (clip == null)
+            {
+                Debug.LogWarning("BGM clip not found at Resources/Music/俄羅斯方塊背景音樂1");
+                return;
+            }
+            bgm = gameObject.AddComponent<AudioSource>();
+            bgm.clip = clip;
+            bgm.loop = true;
+            bgm.playOnAwake = false;
+            bgm.spatialBlend = 0f;      // force 2D so the 3D import flag can't attenuate it
+            bgm.volume = _volume;
+            bgm.Play();
         }
 
         // ============================ SETUP ============================
@@ -644,6 +674,10 @@ namespace TetrisArcade
         // it touches nothing, preserving the default borderless-fullscreen launch (zero regression).
         void LoadSettings()
         {
+            // Music volume
+            if (PlayerPrefs.HasKey(PrefVolume))
+                _volume = Mathf.Clamp01(PlayerPrefs.GetFloat(PrefVolume));
+
             // UI scale
             if (PlayerPrefs.HasKey(PrefUIScale))
                 _uiScale = Mathf.Clamp(PlayerPrefs.GetFloat(PrefUIScale), 0.5f, 2f);
@@ -739,6 +773,15 @@ namespace TetrisArcade
             Toast("FPS: " + (f > 0 ? f.ToString() : "Unlimited"));
         }
 
+        void ApplyVolume(float v)
+        {
+            _volume = Mathf.Clamp01(v);
+            if (bgm != null) bgm.volume = _volume;
+            PlayerPrefs.SetFloat(PrefVolume, _volume);
+            PlayerPrefs.Save();
+            Toast("Volume: " + Mathf.RoundToInt(_volume * 100f) + "%");
+        }
+
         void Toast(string msg)
         {
             _appliedMsg = msg;
@@ -799,7 +842,7 @@ namespace TetrisArcade
             float listH = Mathf.Min(visible.Count, 7) * optH;
             float longestRowW = _menuBtn.CalcSize(new GUIContent("8192 x 4320  (16:9)   ✓ current")).x;
             float panelW = Mathf.Round(Mathf.Clamp(longestRowW + fs * 3.2f, 360f, Screen.width * 0.94f));
-            float contentH = titleH + gap + 5f * (rowH + gap) + (_resOpen ? listH : 0f) + msgH + closeH + pad * 2f;
+            float contentH = titleH + gap + 6f * (rowH + gap) + (_resOpen ? listH : 0f) + msgH + closeH + pad * 2f;
             float panelH = Mathf.Round(Mathf.Min(contentH, Screen.height * 0.94f));
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -841,6 +884,11 @@ namespace TetrisArcade
                     if (int.TryParse(_fpsInput, out int cv)) ApplyFps(Mathf.Clamp(cv, 10, 1000));
                 y += rowH + gap;
             }
+
+            // VOLUME (music), clamps at 0/100% instead of wrapping
+            int dVol = Stepper(innerX, y, innerW, rowH, gap, "VOL", Mathf.RoundToInt(_volume * 100f) + "%", true);
+            if (dVol != 0) ApplyVolume(_volume + dVol * VolumeStep);
+            y += rowH + gap;
 
             // RES (windowed only; dropdown list picker)
             y = DrawResDropdown(innerX, y, innerW, rowH, optH, gap, windowed, visible, listH);
