@@ -77,11 +77,13 @@ Awarded on game over, based on final score. Quitting mid-run awards nothing.
 
 | Currency | Formula | Range |
 |----------|---------|-------|
-| Gold | `1 + floor(score / 1500)` | 1–10 |
-| Diamond | `floor(score / 8000)` | 0–5 |
+| Gold | `1 + floor(score / 600)` | 1–10 |
+| Diamond | `floor(score / 3000)` | 0–5 |
 
-Both are clamped to their range. Balances persist in `PlayerPrefs`, alongside the
-existing settings, and are shown on the main menu.
+Both are clamped to their range, so a single huge run cannot bankroll everything —
+Gold caps out around 5400 points and Diamond around 15000. Balances persist in
+`PlayerPrefs` alongside the existing settings, and are shown in the shop and on
+the game-over screen.
 
 ## Skill Tree
 
@@ -144,6 +146,7 @@ single-run consumable; the skill tree remains the home of permanent unlocks.
 ## Project layout
 - `Assets/Scripts/TetrisGame.cs` — board, pieces, input, HUD and menus
 - `Assets/Scripts/TetrisGame.Shop.cs` — shop screen and consumable behaviour
+- `Assets/Scripts/TetrisGame.Admin.cs` — F12 testing panel, safe to delete
 - `Assets/Scripts/SaveData.cs` — currency and inventory persistence
 - `Assets/Scripts/ShopCatalog.cs` — shop stock, as data
 - `Assets/Scenes/Tetris.unity` — the playable scene

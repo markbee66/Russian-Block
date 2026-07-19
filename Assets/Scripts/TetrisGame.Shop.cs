@@ -103,6 +103,61 @@ namespace TetrisArcade
                 _inShop = false;
         }
 
+        // ============================ GAME OVER ============================
+
+        // Replaces the old two-line "GAME OVER / press R" text. Reports what the
+        // run earned and gives the player a way out that is not the pause menu.
+        void DrawGameOverPanel()
+        {
+            GUI.color = new Color(0f, 0f, 0f, 0.72f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
+            GUI.color = Color.white;
+
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
+            _menuClose.fontSize = fs;
+
+            float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f;
+            float titleH = fs * 2.8f, lineH = fs * 1.5f, rewardH = fs * 1.7f;
+            float panelW = Mathf.Round(Mathf.Clamp(fs * 20f, 340f, Screen.width * 0.9f));
+            float panelH = Mathf.Round(titleH + lineH + rewardH + gap
+                                       + 2f * (btnH + gap) + pad * 2f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+            float innerX = px + pad, innerW = panelW - pad * 2f;
+
+            GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
+
+            _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.8f);
+            _menuTitle.normal.textColor = accent;
+            float y = py + pad;
+            GUI.Label(new Rect(px, y, panelW, titleH), "GAME OVER", _menuTitle);
+            y += titleH;
+
+            _stat.fontSize = fs;
+            _stat.normal.textColor = Color.white;
+            GUI.Label(new Rect(px, y, panelW, lineH), "SCORE  " + score, _stat);
+            y += lineH;
+
+            _smallC.fontSize = Mathf.RoundToInt(fs * 0.95f);
+            _smallC.normal.textColor = accent;
+            string reward = "+" + _paidGold + " GOLD"
+                          + (_paidDiamond > 0 ? "    +" + _paidDiamond + " DIAMOND" : "");
+            GUI.Label(new Rect(px, y, panelW, rewardH), reward, _smallC);
+            y += rewardH + gap;
+
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RETRY", _menuClose))
+            { NewGame(); Redraw(); }
+            y += btnH + gap;
+
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "MAIN MENU", _menuClose))
+            {
+                showSettings = false; _inSettings = false; _resOpen = false;
+                inMenu = true;
+                NewGame(false);   // reset the board without charging for passives
+                Redraw();
+            }
+        }
+
         // ============================ RUN STATE ============================
 
         bool _slowStart;            // Slow Start active for this run
@@ -121,9 +176,10 @@ namespace TetrisArcade
 
         /// <summary>
         /// Called from NewGame. Spends the passive items, and clears whatever
-        /// the previous run left behind.
+        /// the previous run left behind. With spend false it only clears — used
+        /// when the board is reset on the way back to the title screen.
         /// </summary>
-        void BeginRunItems()
+        void BeginRunItems(bool spend)
         {
             _runTime = 0f;
             _holdUnlocked = false;
@@ -132,8 +188,8 @@ namespace TetrisArcade
             _undoReady = false;
 
             // Passives are paid for up front, and only if one is actually owned.
-            _slowStart = SaveData.ConsumeItem(ShopCatalog.SlowStart);
-            _extraPreview = SaveData.ConsumeItem(ShopCatalog.ExtraPreview);
+            _slowStart = spend && SaveData.ConsumeItem(ShopCatalog.SlowStart);
+            _extraPreview = spend && SaveData.ConsumeItem(ShopCatalog.ExtraPreview);
         }
 
         /// <summary>Gravity interval for this frame, with Slow Start folded in.</summary>

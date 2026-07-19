@@ -276,7 +276,10 @@ namespace TetrisArcade
 
         // ============================ GAME FLOW ============================
 
-        void NewGame()
+        // spendItems is false when the board is only being reset on the way back to
+        // the title screen — that is not a run starting, so passive items must not
+        // be charged for it.
+        void NewGame(bool spendItems = true)
         {
             for (int x = 0; x < Width; x++)
                 for (int y = 0; y < Height; y++)
@@ -288,7 +291,7 @@ namespace TetrisArcade
             gravityTimer = 0; lockTimer = 0;
             bag.Clear();
             _rewardPaid = false;
-            BeginRunItems();
+            BeginRunItems(spendItems);
             nextType = NextFromBag();
             SpawnPiece();
         }
@@ -426,6 +429,7 @@ namespace TetrisArcade
         void Update()
         {
             CheckLayout();
+            HandleAdminHotkey();
             if (inMenu)
             {
                 if (!_inSettings && !_inShop && StartPressed()) { NewGame(); inMenu = false; }
@@ -638,6 +642,7 @@ namespace TetrisArcade
                 if (_inSettings) DrawSettingsPanel();
                 else if (_inShop) DrawShopScreen();
                 else DrawTitleMenu();
+                if (_adminOpen) DrawAdminPanel();
                 return;
             }
 
@@ -674,8 +679,7 @@ namespace TetrisArcade
 
             if (gameOver)
             {
-                WLabel(4.5f, 10.5f, "GAME OVER", _big, 400);
-                WLabel(4.5f, 8.8f, "Press R to restart", _label, 400);
+                DrawGameOverPanel();
             }
             else if (paused)
             {
@@ -685,6 +689,8 @@ namespace TetrisArcade
             if (!showSettings) DrawSettingsButton();
             else if (_inSettings) DrawSettingsPanel();
             else DrawPauseMenu();
+
+            if (_adminOpen) DrawAdminPanel();
         }
 
         void WLabel(float wx, float wy, string text, GUIStyle style, float width)
@@ -988,7 +994,7 @@ namespace TetrisArcade
             y += btnH + gap;
             // QUIT here returns to the title screen; only the title's QUIT exits the app.
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
-            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; NewGame(); Redraw(); }
+            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; NewGame(false); Redraw(); }
         }
 
         // Title screen shown on launch: a big title over START / SETTINGS / QUIT.

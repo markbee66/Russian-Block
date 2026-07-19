@@ -41,8 +41,8 @@ namespace TetrisArcade
         /// </summary>
         public static void AwardForRun(int score, out int gold, out int diamond)
         {
-            gold    = Mathf.Clamp(1 + score / 1500, 1, 10);
-            diamond = Mathf.Clamp(score / 8000, 0, 5);
+            gold    = Mathf.Clamp(1 + score / 600, 1, 10);
+            diamond = Mathf.Clamp(score / 3000, 0, 5);
 
             Gold += gold;
             Diamond += diamond;
@@ -86,6 +86,13 @@ namespace TetrisArcade
         }
 
         // ============================ DEBUG ============================
+
+        /// <summary>Testing hook: hands out currency directly. Used by the admin panel.</summary>
+        public static void Grant(int gold, int diamond)
+        {
+            Gold += gold;
+            Diamond += diamond;
+        }
 
         /// <summary>Wipes currency and inventory. Settings are left alone.</summary>
         public static void ResetProgress()
