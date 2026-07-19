@@ -25,6 +25,14 @@ namespace TetrisArcade
         static bool IsBomb(int type) => type >= BombBox && type <= BombRow;
         static bool IsInoperable(int type) => type >= InoperableBase;
 
+        /// <summary>
+        /// Sand bombs are the upgraded form of every bomb kind: the blast is
+        /// identical, but the stack then settles into the hole it left. Bought
+        /// once from the skill tree, so it lifts all three kinds at the same
+        /// time rather than being rolled per piece.
+        /// </summary>
+        static bool SandBombs => SkillTree.IsUnlocked(SkillTree.SandBomb);
+
         // ============================ ROLLING ============================
 
         /// <summary>
@@ -85,8 +93,43 @@ namespace TetrisArcade
                     if (board[x, by] >= 0) { board[x, by] = -1; destroyed++; }
             }
 
-            CollapseAll();
+            // Only the sand upgrade settles the whole board. A plain bomb keeps
+            // the holes it punched, so it cannot set up a line clear on its own.
+            if (SandBombs) CollapseAll();
+            else CollapseEmptyRows();
             return destroyed;
+        }
+
+        /// <summary>
+        /// Closes rows the blast emptied outright, shifting everything above down
+        /// one. A plain bomb is meant to leave holes, but a full-width empty row
+        /// with blocks hanging over it reads as broken rather than as a hole —
+        /// a row bomb would leave one every time.
+        /// </summary>
+        void CollapseEmptyRows()
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                if (RowHasBlocks(y)) continue;
+                if (!AnyBlocksAbove(y)) break;   // nothing left up there to fall in
+
+                for (int yy = y; yy < Height - 1; yy++)
+                    for (int x = 0; x < Width; x++) board[x, yy] = board[x, yy + 1];
+                for (int x = 0; x < Width; x++) board[x, Height - 1] = -1;
+                y--;   // the row that just dropped in still needs checking
+            }
+        }
+
+        bool RowHasBlocks(int y)
+        {
+            for (int x = 0; x < Width; x++) if (board[x, y] >= 0) return true;
+            return false;
+        }
+
+        bool AnyBlocksAbove(int y)
+        {
+            for (int yy = y + 1; yy < Height; yy++) if (RowHasBlocks(yy)) return true;
+            return false;
         }
 
         /// <summary>
@@ -109,10 +152,13 @@ namespace TetrisArcade
             }
         }
 
-        static string BombName(int bombType) =>
-            bombType == BombBox ? "3x3 BOMB"
-            : bombType == BombColumn ? "COLUMN BOMB"
-            : "ROW BOMB";
+        static string BombName(int bombType)
+        {
+            string kind = bombType == BombBox ? "BOMB"
+                        : bombType == BombColumn ? "COLUMN BOMB"
+                        : "ROW BOMB";
+            return SandBombs ? "SAND " + kind : kind;
+        }
     }
 
     /// <summary>

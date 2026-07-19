@@ -61,11 +61,27 @@ that draw, so bag fairness is preserved. The NEXT panel shows the mutated result
 - The kind is part of the piece type, not a field, so a bomb waiting in the
   preview cannot change what an already-falling bomb will do.
 - Detonates the moment the piece locks.
-- Destroyed cells collapse (everything above falls down), same as a line clear.
 - Scores 10 points per destroyed cell. Does **not** count toward the line counter,
   so it never advances the level on its own.
-- Normal line-clear detection still runs after the collapse — a bomb can set up a
-  regular line clear, which scores and counts as usual.
+- A base bomb only clears its cells — the hole stays open, so it cannot set up a
+  line clear on its own.
+- The one exception is a row the blast empties outright: it closes up like a line
+  clear, so nothing is ever left hanging over a full-width gap. A row bomb would
+  otherwise leave one every single time.
+
+#### Sand bomb — the upgraded form
+
+Unlocking **Sand Bomb** in the Gold branch upgrades all three kinds at once; there
+is no separate piece to roll for, and no way to get one kind sanded but not
+another.
+
+- Destroyed cells collapse (everything above falls down), same as a line clear.
+- Normal line-clear detection still runs after the collapse — a sand bomb can set
+  up a regular line clear, which scores and counts as usual.
+- The blast itself is unchanged, so the shape and the score are identical; only
+  the settling is added.
+- Named `SAND BOMB` / `SAND COLUMN BOMB` / `SAND ROW BOMB` in the toast once the
+  upgrade is owned.
 
 ### Odd shape
 - Solid rectangles outside the standard set: **2x3** and **1x5**, 50/50.
@@ -94,13 +110,16 @@ the game-over screen.
 ## Skill Tree
 
 Entered from the **main menu**. Unlocks are permanent across runs and stored in
-`PlayerPrefs`. Two independent branches; within a branch, nodes unlock in order.
+`PlayerPrefs`. Two independent branches.
 
-**Branch A — Gold.** One-off unlocks, bought in order.
+**Branch A — Gold.** One-off unlocks. The three removal skills unlock in order;
+Sand Bomb upgrades a mutation rather than granting a skill, so it stands outside
+that chain and can be bought at any time.
 
 1. Block Remove — 10 Gold
 2. Line Remove — 20 Gold *(requires node 1)*
 3. Revive — 40 Gold *(requires node 2)*
+4. Sand Bomb — 30 Gold *(no prerequisite)*
 
 **Branch B — Diamond.** Mutation tuning, levelled 0–3. Diamond drops are scarce,
 so levels stay cheap: **2 / 3 / 5** Diamond, 30 to max all three nodes.
@@ -119,9 +138,11 @@ entirely.
 | Block Remove | Click any single block to destroy it | 60s | Unlimited | Active | Q |
 | Line Remove | Destroys the topmost row containing any block | 120s | Unlimited | Active | E |
 | Revive | On game over, clears the whole board and play continues | — | Once per run | Passive | — |
+| Sand Bomb | Every bomb also collapses the stack after its blast | — | Always on | Passive | — |
 
 Unlocked skills show their state in the HUD, Revive included: READY until it
-fires, USED afterwards.
+fires, USED afterwards. Sand Bomb has no state to show, so it stays out of the
+HUD — the bomb's own toast reads `SAND …` once it is owned.
 
 - Both active skills collapse the blocks above the removed cells, so they leave no
   new holes.

@@ -44,6 +44,7 @@ namespace TetrisArcade
         public const string BlockRemove = "block_remove";
         public const string LineRemove  = "line_remove";
         public const string Revive      = "revive";
+        public const string SandBomb    = "sand_bomb";
 
         // ---- Branch B: Diamond, levelled mutation tuning ----
         public const string BombAffinity    = "bomb_affinity";
@@ -58,6 +59,10 @@ namespace TetrisArcade
                      "Clear the topmost occupied row   ·   120s", 20, 0, BlockRemove),
             new Node(Revive, "REVIVE",
                      "Clear the board instead of dying   ·   once per run", 40, 0, LineRemove),
+            // Stands outside the removal chain: it upgrades a mutation rather
+            // than granting a skill, so it has no prerequisite of its own.
+            new Node(SandBomb, "SAND BOMB",
+                     "Upgrade every bomb   ·   the stack falls in after the blast", 30, 0, null),
         };
 
         // Diamond drops are scarce, so these stay cheap: 2/3/5 per node, 30 to
