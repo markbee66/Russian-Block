@@ -134,10 +134,10 @@ namespace TetrisArcade
         // backdrop picture reads through the playfield. Filled cells use COLORS,
         // which stay fully opaque, so landed blocks never lose contrast.
         readonly Color bgColor    = new Color(0.03f, 0.03f, 0.06f);
-        readonly Color wellColor  = new Color(0.07f, 0.07f, 0.11f, 0.55f);
-        readonly Color emptyCell  = new Color(0.12f, 0.12f, 0.17f, 0.35f);
+        readonly Color wellColor  = new Color(0.07f, 0.07f, 0.11f, 0.82f);
+        readonly Color emptyCell  = new Color(0.12f, 0.12f, 0.17f, 0.70f);
         readonly Color accent     = new Color(0.20f, 0.85f, 0.95f);
-        readonly Color panelEmpty = new Color(0.10f, 0.10f, 0.15f, 0.35f);
+        readonly Color panelEmpty = new Color(0.10f, 0.10f, 0.15f, 0.70f);
 
         // ---- Camera framing (set by ConfigureLayout based on the aspect ratio) ----
         float camX = 6f, camY = 10f, camSize = 12f;
@@ -1107,7 +1107,7 @@ namespace TetrisArcade
         {
             // Lighter than the shop/skills screens: the title has little text to
             // protect, so the backdrop picture is allowed to show through.
-            GUI.color = new Color(0f, 0f, 0f, 0.45f);
+            GUI.color = new Color(0f, 0f, 0f, 0.62f);
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
             GUI.color = Color.white;
 

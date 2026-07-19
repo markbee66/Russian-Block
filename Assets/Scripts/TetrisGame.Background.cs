@@ -16,10 +16,10 @@ namespace TetrisArcade
         // first one found wins, so swapping the backdrop is a file swap.
         const string BackdropFolder = "pic_assests";
 
-        // Only lightly knocked back. The playfield above it is translucent rather
-        // than opaque, so the picture carries the readability instead of being
-        // dimmed into the background colour.
-        static readonly Color BackdropTint = new Color(0.80f, 0.80f, 0.84f, 1f);
+        // Held well back so the picture sits behind the game rather than competing
+        // with it — the playfield is translucent, and a bright backdrop shows
+        // straight through and washes the board out.
+        static readonly Color BackdropTint = new Color(0.42f, 0.42f, 0.46f, 1f);
 
         SpriteRenderer _backdrop;
         float _backdropAspect = 1f;
@@ -54,8 +54,9 @@ namespace TetrisArcade
         }
 
         /// <summary>
-        /// Sizes the backdrop to cover the camera view whatever the aspect ratio,
-        /// cropping the overhang rather than stretching the picture.
+        /// Fits the whole picture inside the camera view, never cropping it. The
+        /// aspect ratio is kept, so a picture shaped differently to the window
+        /// leaves a margin rather than losing its edges.
         /// </summary>
         void LayoutBackdrop()
         {
@@ -64,8 +65,8 @@ namespace TetrisArcade
             float viewH = cam.orthographicSize * 2f;
             float viewW = viewH * ((float)Screen.width / Mathf.Max(1, Screen.height));
 
-            // Cover: take whichever scale fills both axes, so no gap can show.
-            float scale = Mathf.Max(viewH, viewW / _backdropAspect);
+            // Contain: the smaller scale, so both axes fit inside the view.
+            float scale = Mathf.Min(viewH, viewW / _backdropAspect);
 
             _backdrop.transform.position = new Vector3(cam.transform.position.x,
                                                        cam.transform.position.y, 0f);
