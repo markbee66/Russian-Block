@@ -3,13 +3,18 @@ using UnityEngine;
 namespace TetrisArcade
 {
     /// <summary>
-    /// The permanent unlock tree, as data plus its persistence. Unlike the shop
-    /// these are bought once and kept forever, so ownership is a flag rather
-    /// than a count.
+    /// The permanent upgrade tree.
+    ///
+    /// Branch A (Gold) holds the active skills, bought once and kept forever.
+    /// Branch B (Diamond) tunes the mutation rates and is levelled: each node
+    /// goes up to MaxLevel, getting dearer each step.
     /// </summary>
     public static class SkillTree
     {
         const string PrefUnlockPrefix = "TetrisArcade.Skill.";
+        const string PrefLevelPrefix  = "TetrisArcade.SkillLv.";
+
+        public const int MaxLevel = 3;
 
         public sealed class Node
         {
@@ -18,7 +23,7 @@ namespace TetrisArcade
             public readonly string Description;
             public readonly int GoldCost;
             public readonly int DiamondCost;
-            public readonly string Requires;   // node id that must be unlocked first, or null
+            public readonly string Requires;
 
             public Node(string id, string name, string description,
                         int goldCost, int diamondCost, string requires)
@@ -35,24 +40,38 @@ namespace TetrisArcade
             public string PriceLabel => IsDiamond ? DiamondCost + " D" : GoldCost + " G";
         }
 
+        // ---- Branch A: Gold, one-off unlocks ----
         public const string BlockRemove = "block_remove";
         public const string LineRemove  = "line_remove";
         public const string Revive      = "revive";
 
-        // Branch A is Gold and ordered; Branch B is a single Diamond node.
+        // ---- Branch B: Diamond, levelled mutation tuning ----
+        public const string BombAffinity    = "bomb_affinity";
+        public const string InoperableWard  = "inoperable_ward";
+        public const string OddShapeWard    = "odd_shape_ward";
+
         public static readonly Node[] GoldBranch =
         {
             new Node(BlockRemove, "BLOCK REMOVE",
                      "Click one block to destroy it   ·   60s", 10, 0, null),
             new Node(LineRemove, "LINE REMOVE",
                      "Clear the topmost occupied row   ·   120s", 20, 0, BlockRemove),
+            new Node(Revive, "REVIVE",
+                     "Clear the board instead of dying   ·   once per run", 40, 0, LineRemove),
         };
+
+        // Diamond drops are scarce, so these stay cheap: 2/3/5 per node, 30 to
+        // max all three.
+        public static readonly int[] LevelCosts = { 2, 3, 5 };
 
         public static readonly Node[] DiamondBranch =
         {
-            new Node(Revive, "REVIVE",
-                     "Clear the board instead of dying   ·   once per run", 0, 10, null),
+            new Node(BombAffinity, "BOMB AFFINITY", "Bombs appear more often", 0, 1, null),
+            new Node(InoperableWard, "INOPERABLE WARD", "Fewer pieces you cannot steer", 0, 1, null),
+            new Node(OddShapeWard, "ODD SHAPE WARD", "Fewer 2x3 and 1x5 pieces", 0, 1, null),
         };
+
+        // ============================ GOLD BRANCH ============================
 
         public static bool IsUnlocked(string id) =>
             PlayerPrefs.GetInt(PrefUnlockPrefix + id, 0) == 1;
@@ -63,14 +82,34 @@ namespace TetrisArcade
             PlayerPrefs.Save();
         }
 
-        /// <summary>A node is buyable once its prerequisite is unlocked.</summary>
         public static bool PrerequisiteMet(Node node) =>
             node.Requires == null || IsUnlocked(node.Requires);
+
+        // ============================ DIAMOND BRANCH ============================
+
+        /// <summary>Current level of a levelled node, 0 (baseline) to MaxLevel.</summary>
+        public static int Level(string id) =>
+            Mathf.Clamp(PlayerPrefs.GetInt(PrefLevelPrefix + id, 0), 0, MaxLevel);
+
+        /// <summary>Diamond cost of the next level, or -1 when already maxed.</summary>
+        public static int NextLevelCost(string id)
+        {
+            int lv = Level(id);
+            return lv >= MaxLevel ? -1 : LevelCosts[lv];
+        }
+
+        public static void LevelUp(string id)
+        {
+            int lv = Level(id);
+            if (lv >= MaxLevel) return;
+            PlayerPrefs.SetInt(PrefLevelPrefix + id, lv + 1);
+            PlayerPrefs.Save();
+        }
 
         public static void ResetUnlocks()
         {
             foreach (var n in GoldBranch) PlayerPrefs.DeleteKey(PrefUnlockPrefix + n.Id);
-            foreach (var n in DiamondBranch) PlayerPrefs.DeleteKey(PrefUnlockPrefix + n.Id);
+            foreach (var n in DiamondBranch) PlayerPrefs.DeleteKey(PrefLevelPrefix + n.Id);
             PlayerPrefs.Save();
         }
     }

@@ -288,8 +288,8 @@ namespace TetrisArcade
                 curRot = 0;
                 curX = 3;
                 int maxOy = 0;
-                var s = SHAPES[curType][0];
-                for (int i = 0; i < 4; i++) maxOy = Mathf.Max(maxOy, s[i * 2 + 1]);
+                var s = CellsOf(curType, 0);
+                for (int i = 0; i < s.Length / 2; i++) maxOy = Mathf.Max(maxOy, s[i * 2 + 1]);
                 curY = (Height - 1) - maxOy;
                 if (!CanPlace(curType, curRot, curX, curY)) gameOver = true;
                 gravityTimer = 0; lockTimer = 0;
@@ -354,8 +354,8 @@ namespace TetrisArcade
 
             int after = PeekAfterNext();
             if (after < 0) return;
-            var s = SHAPES[after][0];
-            for (int i = 0; i < 4; i++)
+            var s = CellsOf(after, 0);
+            for (int i = 0; i < s.Length / 2; i++)
             {
                 int x = s[i * 2], y = s[i * 2 + 1];
                 if (x >= 0 && x < 4 && y >= 0 && y < 4) _prev2[x, y].color = COLORS[after];
@@ -363,13 +363,21 @@ namespace TetrisArcade
         }
 
         /// <summary>
-        /// The piece queued behind nextType, without consuming it. Refills the
-        /// bag first so the answer is never "unknown" on a bag boundary.
+        /// The piece queued behind nextType. Draws and mutates it once, then
+        /// parks it in the lookahead slot so the preview and the piece that
+        /// eventually arrives are the same thing.
         /// </summary>
         int PeekAfterNext()
         {
-            EnsureBag();
-            return bag.Count > 0 ? bag[bag.Count - 1] : -1;
+            if (_afterNext < 0)
+            {
+                EnsureBag();
+                if (bag.Count == 0) return -1;
+                int b = bag[bag.Count - 1];
+                bag.RemoveAt(bag.Count - 1);
+                _afterNext = ApplyMutation(b);
+            }
+            return _afterNext;
         }
 
         /// <summary>Captures the pre-lock state so Undo can rewind to it.</summary>

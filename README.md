@@ -35,25 +35,33 @@ preview and HUD at runtime.
 
 ## Mutated Pieces
 
-Every spawn rolls for a mutation. The rolls are **ordered from rarest to most
-common, and stop at the first hit** — so at most one mutation applies per piece.
+Every spawn rolls once against cumulative bands, so at most one mutation applies
+and each rate below is the true rate rather than a nominal one.
 
-| Order | Mutation | Chance | Effective rate |
-|-------|----------|--------|----------------|
-| 1 | Inoperable | 1/20 | 5.00% |
-| 2 | Bomb | 1/15 | 6.33% |
-| 3 | Odd shape | 1/12 | 7.36% |
-| — | Normal piece | — | 81.31% |
+Rates are set by the Diamond skill tree, so they change as the player levels it:
+
+| Mutation | Level 0 | Level 1 | Level 2 | Level 3 |
+|----------|---------|---------|---------|---------|
+| Inoperable | 5.00% | 4.33% | 3.67% | 3.00% |
+| Bomb | 3.00% | 4.10% | 5.20% | 6.33% |
+| Odd shape | 7.36% | 5.91% | 4.45% | 3.00% |
+
+Normal pieces take whatever is left — 84.6% at level 0 across the board, 87.7%
+with every ward maxed and bombs left alone.
 
 The piece type is still drawn from the 7-bag first; the mutation then transforms
-that draw, so bag fairness is preserved. The next-piece preview always shows the
-mutated result.
+that draw, so bag fairness is preserved. Both preview panels show the mutated
+result, which is why the piece after next is rolled once and parked in a
+lookahead slot rather than re-rolled on arrival.
 
 ### Bomb (1x1)
-- Single cell, standard tetromino colors, one of three kinds at equal 1/3 odds:
-  - **Box bomb** — clears the 3x3 area centred on the bomb
-  - **I bomb** — clears the bomb's entire column
-  - **Line bomb** — clears the bomb's entire row
+- Single cell in one of three kinds at equal 1/3 odds, each its own colour so the
+  blast is predictable before it lands:
+  - **Box bomb** (pink) — clears the 3x3 area centred on the bomb
+  - **Column bomb** (amber) — clears the bomb's entire column
+  - **Row bomb** (yellow) — clears the bomb's entire row
+- The kind is part of the piece type, not a field, so a bomb waiting in the
+  preview cannot change what an already-falling bomb will do.
 - Detonates the moment the piece locks.
 - Destroyed cells collapse (everything above falls down), same as a line clear.
 - Scores 10 points per destroyed cell. Does **not** count toward the line counter,
@@ -90,12 +98,21 @@ the game-over screen.
 Entered from the **main menu**. Unlocks are permanent across runs and stored in
 `PlayerPrefs`. Two independent branches; within a branch, nodes unlock in order.
 
-**Branch A — Gold**
+**Branch A — Gold.** One-off unlocks, bought in order.
+
 1. Block Remove — 10 Gold
 2. Line Remove — 20 Gold *(requires node 1)*
+3. Revive — 40 Gold *(requires node 2)*
 
-**Branch B — Diamond**
-1. Revive — 10 Diamond
+**Branch B — Diamond.** Mutation tuning, levelled 0–3. Diamond drops are scarce,
+so levels stay cheap: **2 / 3 / 5** Diamond, 30 to max all three nodes.
+
+1. Bomb Affinity — bombs from 3% up to 6.33%
+2. Inoperable Ward — inoperable pieces from 5% down to 3%
+3. Odd Shape Ward — odd shapes from 7.36% down to 3%
+
+Wards floor at 3% rather than reaching zero, so mutations never disappear
+entirely.
 
 ## Skills
 
@@ -104,6 +121,9 @@ Entered from the **main menu**. Unlocks are permanent across runs and stored in
 | Block Remove | Click any single block to destroy it | 60s | Unlimited | Active | Q |
 | Line Remove | Destroys the topmost row containing any block | 120s | Unlimited | Active | E |
 | Revive | On game over, clears the whole board and play continues | — | Once per run | Passive | — |
+
+Unlocked skills show their state in the HUD, Revive included: READY until it
+fires, USED afterwards.
 
 - Both active skills collapse the blocks above the removed cells, so they leave no
   new holes.
@@ -147,6 +167,8 @@ single-run consumable; the skill tree remains the home of permanent unlocks.
 - `Assets/Scripts/TetrisGame.cs` — board, pieces, input, HUD and menus
 - `Assets/Scripts/TetrisGame.Shop.cs` — shop screen and consumable behaviour
 - `Assets/Scripts/TetrisGame.Skills.cs` — skill tree screen and the three skills
+- `Assets/Scripts/TetrisGame.Mutations.cs` — mutation rolling, bombs, rate tables
+- `Assets/Scripts/TetrisGame.Hud.cs` — toast, item/skill readouts, targeting
 - `Assets/Scripts/TetrisGame.Admin.cs` — F9 testing panel, safe to delete
 - `Assets/Scripts/SaveData.cs` — currency and inventory persistence
 - `Assets/Scripts/ShopCatalog.cs` — shop stock, as data

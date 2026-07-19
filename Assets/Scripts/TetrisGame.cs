@@ -33,7 +33,48 @@ namespace TetrisArcade
             new int[][]{ new int[]{0,2,0,1,1,1,2,1}, new int[]{1,2,2,2,1,1,1,0}, new int[]{0,1,1,1,2,1,2,0}, new int[]{1,2,1,1,1,0,0,0} },
             // L
             new int[][]{ new int[]{2,2,0,1,1,1,2,1}, new int[]{1,2,1,1,1,0,2,0}, new int[]{0,1,1,1,2,1,0,0}, new int[]{0,2,1,2,1,1,1,0} },
+
+            // --- mutated shapes (see TetrisGame.Mutations.cs) ---
+            // Piece cell counts vary from here on, so every loop over a shape
+            // uses s.Length / 2 rather than a hardcoded 4.
+
+            // 7,8,9: the three bomb kinds. Each is a single cell, identical in
+            // every rotation. The kind lives in the type index rather than a
+            // field, so two bombs queued at once cannot clobber each other.
+            new int[][]{ new int[]{1,1}, new int[]{1,1}, new int[]{1,1}, new int[]{1,1} },
+            new int[][]{ new int[]{1,1}, new int[]{1,1}, new int[]{1,1}, new int[]{1,1} },
+            new int[][]{ new int[]{1,1}, new int[]{1,1}, new int[]{1,1}, new int[]{1,1} },
+            // 10: 2x3 rectangle, alternating with its 3x2 form
+            new int[][]{
+                new int[]{1,0,2,0,1,1,2,1,1,2,2,2},
+                new int[]{0,1,1,1,2,1,0,2,1,2,2,2},
+                new int[]{1,0,2,0,1,1,2,1,1,2,2,2},
+                new int[]{0,1,1,1,2,1,0,2,1,2,2,2} },
+            // 11: 1x5 bar, upright and flat
+            new int[][]{
+                new int[]{2,0,2,1,2,2,2,3,2,4},
+                new int[]{0,2,1,2,2,2,3,2,4,2},
+                new int[]{2,0,2,1,2,2,2,3,2,4},
+                new int[]{0,2,1,2,2,2,3,2,4,2} },
         };
+
+        // Inoperable pieces reuse the standard shapes but need their own type
+        // index so the board can colour them differently. The rows are shared by
+        // reference, so this costs nothing but the indirection.
+        static readonly int[][][] INOPERABLE_SHAPES =
+        {
+            SHAPES[0], SHAPES[1], SHAPES[2], SHAPES[3], SHAPES[4], SHAPES[5], SHAPES[6],
+        };
+
+        /// <summary>
+        /// The occupied cells of a piece, as x,y pairs. Replaces the direct
+        /// SHAPES[type][rot] lookups now that inoperable pieces have their own
+        /// type indices and mutated pieces vary in cell count.
+        /// </summary>
+        static int[] CellsOf(int type, int rot) =>
+            type >= InoperableBase
+                ? INOPERABLE_SHAPES[type - InoperableBase][rot]
+                : SHAPES[type][rot];
 
         static readonly Color[] COLORS =
         {
@@ -44,6 +85,24 @@ namespace TetrisArcade
             new Color(0.95f,0.22f,0.28f), // Z red
             new Color(0.22f,0.48f,0.95f), // J blue
             new Color(0.98f,0.55f,0.12f), // L orange
+
+            // 7,8,9: bombs, each kind its own colour so the blast is predictable
+            new Color(0.98f,0.30f,0.55f), // 7  3x3 box bomb, hot pink
+            new Color(1.00f,0.62f,0.20f), // 8  column bomb, amber
+            new Color(0.95f,0.95f,0.35f), // 9  row bomb, bright yellow
+
+            new Color(0.55f,0.90f,0.85f), // 10 2x3 rectangle
+            new Color(0.85f,0.80f,0.45f), // 11 1x5 bar
+
+            // 12-18: inoperable variants of I O T S Z J L, one flat dead grey so
+            // "you cannot steer this" is obvious at a glance.
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
+            new Color(0.42f,0.44f,0.50f),
         };
 
         static readonly int[] LINE_POINTS = { 0, 40, 100, 300, 1200 };
@@ -290,6 +349,7 @@ namespace TetrisArcade
             gameOver = false; paused = false;
             gravityTimer = 0; lockTimer = 0;
             bag.Clear();
+            _afterNext = -1;
             _rewardPaid = false;
             BeginRunItems(spendItems);
             BeginRunSkills();
@@ -310,12 +370,25 @@ namespace TetrisArcade
             }
         }
 
+        // One slot of already-mutated lookahead. Extra Preview needs to show the
+        // piece after next, and the mutation roll is random, so it has to be
+        // rolled once and remembered rather than re-rolled when the piece arrives.
+        int _afterNext = -1;
+
+        // The bag still decides the base piece, so bag fairness is untouched; the
+        // mutation is applied to whatever it hands over.
         int NextFromBag()
         {
+            if (_afterNext >= 0)
+            {
+                int held = _afterNext;
+                _afterNext = -1;
+                return held;
+            }
             EnsureBag();
             int t = bag[bag.Count - 1];
             bag.RemoveAt(bag.Count - 1);
-            return t;
+            return ApplyMutation(t);
         }
 
         void SpawnPiece()
@@ -326,8 +399,8 @@ namespace TetrisArcade
             curX = 3;
             // place so the piece's highest cell sits on the top visible row
             int maxOy = 0;
-            var s = SHAPES[curType][0];
-            for (int i = 0; i < 4; i++) maxOy = Mathf.Max(maxOy, s[i * 2 + 1]);
+            var s = CellsOf(curType, 0);
+            for (int i = 0; i < s.Length / 2; i++) maxOy = Mathf.Max(maxOy, s[i * 2 + 1]);
             curY = (Height - 1) - maxOy;
 
             // Revive gets first refusal on a failed spawn; only if it declines is
@@ -346,8 +419,8 @@ namespace TetrisArcade
 
         bool CanPlace(int type, int rot, int px, int py)
         {
-            var s = SHAPES[type][rot];
-            for (int i = 0; i < 4; i++)
+            var s = CellsOf(type, rot);
+            for (int i = 0; i < s.Length / 2; i++)
             {
                 int x = px + s[i * 2];
                 int y = py + s[i * 2 + 1];
@@ -384,13 +457,23 @@ namespace TetrisArcade
         void LockPiece()
         {
             SnapshotForUndo();
-            var s = SHAPES[curType][curRot];
-            for (int i = 0; i < 4; i++)
+            var s = CellsOf(curType, curRot);
+            for (int i = 0; i < s.Length / 2; i++)
             {
                 int x = curX + s[i * 2];
                 int y = curY + s[i * 2 + 1];
                 if (y >= 0 && y < Height && x >= 0 && x < Width) board[x, y] = curType;
             }
+
+            // A bomb goes off the instant it lands, before the line check, so the
+            // collapse it causes can itself complete a line.
+            if (IsBomb(curType))
+            {
+                int destroyed = Detonate(curType, curX + s[0], curY + s[1]);
+                score += destroyed * 10;
+                Toast(BombName(curType) + "   " + destroyed + " cells");
+            }
+
             ClearLines();
             SpawnPiece();
         }
@@ -461,6 +544,15 @@ namespace TetrisArcade
 
             float dt = Time.deltaTime;
 
+            // An inoperable piece ignores steering entirely — hard drop is the only
+            // input it answers to, so the player can always get rid of it rather
+            // than sitting out the gravity timer.
+            if (IsInoperable(curType))
+            {
+                left = right = cw = ccw = false;
+                downHeld = leftHeld = rightHeld = false;
+            }
+
             // Horizontal move with DAS auto-repeat
             if (left)  { TryMove(-1, 0); dasDir = -1; dasTimer = 0; dasCharged = false; }
             else if (right) { TryMove(1, 0); dasDir = 1; dasTimer = 0; dasCharged = false; }
@@ -522,9 +614,9 @@ namespace TetrisArcade
             {
                 // ghost
                 int gy = GhostY();
-                var s = SHAPES[curType][curRot];
+                var s = CellsOf(curType, curRot);
                 Color ghost = Color.Lerp(emptyCell, COLORS[curType], 0.35f);
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < s.Length / 2; i++)
                 {
                     int x = curX + s[i * 2];
                     int y = gy + s[i * 2 + 1];
@@ -532,7 +624,7 @@ namespace TetrisArcade
                         cells[x, y].color = ghost;
                 }
                 // active piece
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < s.Length / 2; i++)
                 {
                     int x = curX + s[i * 2];
                     int y = curY + s[i * 2 + 1];
@@ -547,8 +639,8 @@ namespace TetrisArcade
                     preview[x, y].color = panelEmpty;
             if (nextType >= 0 && !inMenu)
             {
-                var ns = SHAPES[nextType][0];
-                for (int i = 0; i < 4; i++)
+                var ns = CellsOf(nextType, 0);
+                for (int i = 0; i < ns.Length / 2; i++)
                 {
                     int x = ns[i * 2];
                     int y = ns[i * 2 + 1];

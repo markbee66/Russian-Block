@@ -61,8 +61,8 @@ namespace TetrisArcade
 
             y = DrawBranch("BRANCH A  ·  GOLD", SkillTree.GoldBranch,
                            innerX, y, innerW, fs, rowH, gap, headH);
-            y = DrawBranch("BRANCH B  ·  DIAMOND", SkillTree.DiamondBranch,
-                           innerX, y, innerW, fs, rowH, gap, headH);
+            y = DrawLevelledBranch("BRANCH B  ·  DIAMOND  ·  MUTATIONS", SkillTree.DiamondBranch,
+                                   innerX, y, innerW, fs, rowH, gap, headH);
 
             if (Time.unscaledTime < _skillMessageUntil)
             {
@@ -112,6 +112,54 @@ namespace TetrisArcade
                         SkillSay("Unlocked " + node.Name);
                     }
                     else SkillSay("Not enough currency");
+                }
+                GUI.enabled = true;
+
+                y += rowH + gap;
+            }
+            return y;
+        }
+
+        // A levelled branch: each row shows the rate it is on now, what the next
+        // level buys, and pips for progress. Buying shows the real numbers rather
+        // than "level 2", so the player can see whether it is worth the Diamond.
+        float DrawLevelledBranch(string heading, SkillTree.Node[] nodes,
+                                 float x, float y, float w, int fs, float rowH, float gap, float headH)
+        {
+            _label.fontSize = Mathf.RoundToInt(fs * 0.9f);
+            _label.normal.textColor = new Color(0.6f, 0.75f, 0.85f);
+            GUI.Label(new Rect(x, y, w, headH), heading, _label);
+            y += headH;
+
+            float btnW = Mathf.Round(fs * 5.5f);
+            foreach (var node in nodes)
+            {
+                int lv = SkillTree.Level(node.Id);
+                int cost = SkillTree.NextLevelCost(node.Id);
+                bool maxed = cost < 0;
+                bool affordable = !maxed && SaveData.Diamond >= cost;
+                var table = MutationRates.TableFor(node.Id);
+
+                _label.fontSize = fs;
+                _label.normal.textColor = maxed ? new Color(0.45f, 0.85f, 0.5f) : Color.white;
+                GUI.Label(new Rect(x, y, w - btnW - gap, rowH * 0.52f),
+                          node.Name + "   Lv " + lv + "/" + SkillTree.MaxLevel, _label);
+
+                _small.normal.textColor = new Color(0.55f, 0.6f, 0.7f);
+                string sub = node.Description + "   ·   now " + MutationRates.Percent(table[lv])
+                           + (maxed ? "  (max)" : "  →  " + MutationRates.Percent(table[lv + 1]));
+                GUI.Label(new Rect(x, y + rowH * 0.48f, w - btnW - gap, rowH * 0.46f), sub, _small);
+
+                GUI.enabled = !maxed && affordable;
+                if (GUI.Button(new Rect(x + w - btnW, y + rowH * 0.15f, btnW, rowH * 0.7f),
+                               maxed ? "MAX" : cost + " D", _menuClose))
+                {
+                    if (SaveData.TrySpend(0, cost))
+                    {
+                        SkillTree.LevelUp(node.Id);
+                        SkillSay(node.Name + " Lv " + SkillTree.Level(node.Id));
+                    }
+                    else SkillSay("Not enough Diamond");
                 }
                 GUI.enabled = true;
 
@@ -278,7 +326,8 @@ namespace TetrisArcade
         {
             bool hasBlock = SkillTree.IsUnlocked(SkillTree.BlockRemove);
             bool hasLine = SkillTree.IsUnlocked(SkillTree.LineRemove);
-            if (!hasBlock && !hasLine) return;
+            bool hasRevive = SkillTree.IsUnlocked(SkillTree.Revive);
+            if (!hasBlock && !hasLine && !hasRevive) return;
 
             int fs = Mathf.Max(11, Mathf.RoundToInt(Screen.height * 0.02f * _uiScale));
             _small.fontSize = fs;
@@ -303,6 +352,15 @@ namespace TetrisArcade
                 GUI.Label(new Rect(x, y, w, fs * 1.4f),
                           "E  Line Remove  " + (_lineRemoveCd > 0f
                               ? Mathf.CeilToInt(_lineRemoveCd) + "s" : "READY"), _small);
+                y += fs * 1.4f;
+            }
+            if (hasRevive)
+            {
+                // Passive, so there is no key — but the player still needs to know
+                // whether the safety net is still there.
+                _small.normal.textColor = _reviveUsed ? new Color(0.5f, 0.55f, 0.65f) : accent;
+                GUI.Label(new Rect(x, y, w, fs * 1.4f),
+                          "Revive  " + (_reviveUsed ? "USED" : "READY"), _small);
             }
         }
     }
