@@ -16,8 +16,10 @@ namespace TetrisArcade
         // first one found wins, so swapping the backdrop is a file swap.
         const string BackdropFolder = "pic_assests";
 
-        // Dimmed hard: the board sits on top of this and has to stay readable.
-        static readonly Color BackdropTint = new Color(0.38f, 0.38f, 0.42f, 1f);
+        // Only lightly knocked back. The playfield above it is translucent rather
+        // than opaque, so the picture carries the readability instead of being
+        // dimmed into the background colour.
+        static readonly Color BackdropTint = new Color(0.80f, 0.80f, 0.84f, 1f);
 
         SpriteRenderer _backdrop;
         float _backdropAspect = 1f;
@@ -25,7 +27,13 @@ namespace TetrisArcade
         void SetupBackdrop()
         {
             var textures = Resources.LoadAll<Texture2D>(BackdropFolder);
-            if (textures == null || textures.Length == 0) return;   // no picture, keep the flat colour
+            if (textures == null || textures.Length == 0)
+            {
+                // Silence here is what made this hard to diagnose the first time.
+                Debug.LogWarning("No backdrop image found in Resources/" + BackdropFolder
+                                 + " — falling back to the flat background colour.");
+                return;
+            }
 
             var tex = textures[0];
             _backdropAspect = (float)tex.width / Mathf.Max(1, tex.height);
