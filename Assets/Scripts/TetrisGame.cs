@@ -557,6 +557,7 @@ namespace TetrisArcade
             }
 
             RedrawPreview2();
+            ApplyTargetHighlight();
         }
 
         // ============================ INPUT ============================
@@ -685,6 +686,8 @@ namespace TetrisArcade
                 WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
             }
 
+            DrawPreview2Label();
+
             if (gameOver)
             {
                 DrawGameOverPanel();
@@ -694,7 +697,14 @@ namespace TetrisArcade
                 WLabel(4.5f, 10.5f, "PAUSED", _big, 400);
             }
 
-            if (!showSettings) { DrawSettingsButton(); DrawSkillHud(); }
+            if (!showSettings)
+            {
+                DrawSettingsButton();
+                DrawSkillHud();
+                DrawItemHud();
+                DrawTargetingBanner();
+                DrawToast();
+            }
             else if (_inSettings) DrawSettingsPanel();
             else DrawPauseMenu();
 

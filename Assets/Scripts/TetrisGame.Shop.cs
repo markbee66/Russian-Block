@@ -120,7 +120,7 @@ namespace TetrisArcade
             float titleH = fs * 2.8f, lineH = fs * 1.5f, rewardH = fs * 1.7f;
             float panelW = Mathf.Round(Mathf.Clamp(fs * 20f, 340f, Screen.width * 0.9f));
             float panelH = Mathf.Round(titleH + lineH + rewardH + gap
-                                       + 2f * (btnH + gap) + pad * 2f);
+                                       + 3f * (btnH + gap) + pad * 2f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
             float innerX = px + pad, innerW = panelW - pad * 2f;
@@ -147,6 +147,18 @@ namespace TetrisArcade
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RETRY", _menuClose))
             { NewGame(); Redraw(); }
+            y += btnH + gap;
+
+            // Restocking is the main thing you want after dying, so the shop is
+            // reachable here instead of only from the title screen.
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
+            {
+                inMenu = true;
+                _inShop = true;
+                _shopMessage = "";
+                NewGame(false);
+                Redraw();
+            }
             y += btnH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "MAIN MENU", _menuClose))

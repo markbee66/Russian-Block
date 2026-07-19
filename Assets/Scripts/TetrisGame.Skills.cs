@@ -148,6 +148,7 @@ namespace TetrisArcade
 
             if (_targeting)
             {
+                UpdateHoverCell(mouse);
                 // Q again cancels, without spending the cooldown.
                 if (blockKey) { _targeting = false; Toast("Cancelled"); return; }
                 if (click) ResolveBlockRemove(mouse);
@@ -193,8 +194,16 @@ namespace TetrisArcade
             int bx = Mathf.RoundToInt(world.x);
             int by = Mathf.RoundToInt(world.y);
 
-            if (bx < 0 || bx >= Width || by < 0 || by >= Height) { Toast("Outside the board"); return; }
-            if (board[bx, by] < 0) { Toast("That cell is empty"); return; }
+            // Clicking off the board backs out rather than leaving the run frozen.
+            if (bx < 0 || bx >= Width || by < 0 || by >= Height)
+            {
+                _targeting = false;
+                Toast("Cancelled");
+                return;
+            }
+            // An empty cell is a misclick, not a cancel: stay armed so the player
+            // can just click again. The cooldown is untouched either way.
+            if (board[bx, by] < 0) { Toast("Nothing there — pick a block"); return; }
 
             board[bx, by] = -1;
             CollapseColumn(bx, by);
