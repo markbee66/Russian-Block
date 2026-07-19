@@ -107,6 +107,25 @@ Entered from the **main menu**. Unlocks are permanent across runs and stored in
 - Cooldowns start ready at the beginning of a run and are shown in the HUD.
 - Skill removals award no score and do not count toward the line counter.
 
+## Shop
+
+Entered from the **main menu**, separate from the skill tree. Sells single-run
+consumables for Gold; the skill tree remains the home of permanent unlocks.
+
+| Item | Effect | Price | Stack | Type |
+|------|--------|-------|-------|------|
+| Skip Piece | Discards the current piece and pulls the next one | 5 Gold | 3 | Active (F) |
+| Slow Start | Halves gravity for the first 60 seconds of the run | 8 Gold | 1 | Passive |
+| Extra Preview | Shows one additional upcoming piece for the whole run | 12 Gold | 1 | Passive |
+
+- Owned counts persist in `PlayerPrefs` and survive between runs.
+- Passive items are spent automatically when a run starts, and only if one is
+  owned. Skip Piece is spent per press.
+- Skipping does not reroll the 7-bag — the discarded piece is simply consumed, so
+  bag order is untouched.
+- Consumables are unaffected by the skill tree; the two systems share only the
+  Gold balance.
+
 ## Project layout
 - `Assets/Scripts/TetrisGame.cs` — the entire game
 - `Assets/Scenes/Tetris.unity` — the playable scene
