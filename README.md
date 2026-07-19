@@ -146,9 +146,11 @@ single-run consumable; the skill tree remains the home of permanent unlocks.
 ## Project layout
 - `Assets/Scripts/TetrisGame.cs` — board, pieces, input, HUD and menus
 - `Assets/Scripts/TetrisGame.Shop.cs` — shop screen and consumable behaviour
-- `Assets/Scripts/TetrisGame.Admin.cs` — F12 testing panel, safe to delete
+- `Assets/Scripts/TetrisGame.Skills.cs` — skill tree screen and the three skills
+- `Assets/Scripts/TetrisGame.Admin.cs` — F9 testing panel, safe to delete
 - `Assets/Scripts/SaveData.cs` — currency and inventory persistence
 - `Assets/Scripts/ShopCatalog.cs` — shop stock, as data
+- `Assets/Scripts/SkillTree.cs` — skill nodes and unlock persistence
 - `Assets/Scenes/Tetris.unity` — the playable scene
 
 Built with Unity + Claude Code.

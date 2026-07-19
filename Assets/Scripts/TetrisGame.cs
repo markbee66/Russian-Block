@@ -292,6 +292,7 @@ namespace TetrisArcade
             bag.Clear();
             _rewardPaid = false;
             BeginRunItems(spendItems);
+            BeginRunSkills();
             nextType = NextFromBag();
             SpawnPiece();
         }
@@ -329,7 +330,9 @@ namespace TetrisArcade
             for (int i = 0; i < 4; i++) maxOy = Mathf.Max(maxOy, s[i * 2 + 1]);
             curY = (Height - 1) - maxOy;
 
-            if (!CanPlace(curType, curRot, curX, curY))
+            // Revive gets first refusal on a failed spawn; only if it declines is
+            // the run actually over.
+            if (!CanPlace(curType, curRot, curX, curY) && !TryRevive())
             {
                 gameOver = true;
                 AwardRunCurrency();
@@ -432,7 +435,7 @@ namespace TetrisArcade
             HandleAdminHotkey();
             if (inMenu)
             {
-                if (!_inSettings && !_inShop && StartPressed()) { NewGame(); inMenu = false; }
+                if (!_inSettings && !_inShop && !_inSkills && StartPressed()) { NewGame(); inMenu = false; }
                 Redraw();
                 return;
             }
@@ -451,6 +454,10 @@ namespace TetrisArcade
             if (gameOver) { Redraw(); return; }
             if (doPause) paused = !paused;
             if (paused) { Redraw(); return; }
+
+            HandleSkillKeys();
+            // Block Remove freezes the run while the player picks a target.
+            if (_targeting) { Redraw(); return; }
 
             float dt = Time.deltaTime;
 
@@ -641,6 +648,7 @@ namespace TetrisArcade
             {
                 if (_inSettings) DrawSettingsPanel();
                 else if (_inShop) DrawShopScreen();
+                else if (_inSkills) DrawSkillTreeScreen();
                 else DrawTitleMenu();
                 if (_adminOpen) DrawAdminPanel();
                 return;
@@ -686,7 +694,7 @@ namespace TetrisArcade
                 WLabel(4.5f, 10.5f, "PAUSED", _big, 400);
             }
 
-            if (!showSettings) DrawSettingsButton();
+            if (!showSettings) { DrawSettingsButton(); DrawSkillHud(); }
             else if (_inSettings) DrawSettingsPanel();
             else DrawPauseMenu();
 
@@ -847,8 +855,13 @@ namespace TetrisArcade
                 {
                     if (_inSettings) { _inSettings = false; _resOpen = false; e.Use(); }
                     else if (_inShop) { _inShop = false; e.Use(); }
+                    else if (_inSkills) { _inSkills = false; e.Use(); }
                     return;   // no pause menu on the title screen
                 }
+
+                // While picking a Block Remove target, Esc backs out of that
+                // rather than opening the pause menu.
+                if (_targeting) { _targeting = false; Toast("Cancelled"); e.Use(); return; }
                 if (showSettings && _inSettings) _inSettings = false;   // settings -> main pause menu
                 else showSettings = !showSettings;                      // open / close the menu
                 _resOpen = false;
@@ -1010,7 +1023,7 @@ namespace TetrisArcade
 
             float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f, titleH = fs * 3.2f;
             float panelW = Mathf.Round(Mathf.Clamp(fs * 18f, 320f, Screen.width * 0.9f));
-            string[] items = { "START", "SHOP", "SETTINGS", "QUIT" };
+            string[] items = { "START", "SHOP", "SKILLS", "SETTINGS", "ADMIN", "QUIT" };
             float panelH = Mathf.Round(titleH + gap + items.Length * (btnH + gap) + pad * 2f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -1030,8 +1043,14 @@ namespace TetrisArcade
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
             { _inShop = true; _shopMessage = ""; }
             y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SKILLS", _menuClose))
+            { _inSkills = true; _skillMessage = ""; }
+            y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
             { _inSettings = true; _resOpen = false; }
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "ADMIN", _menuClose))
+                _adminOpen = !_adminOpen;
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
                 Application.Quit();
