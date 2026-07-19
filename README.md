@@ -21,6 +21,9 @@ preview and HUD at runtime.
 | R | Restart |
 | Q | Skill: Block Remove (requires unlock) |
 | E | Skill: Line Remove (requires unlock) |
+| F | Item: Skip Piece (requires purchase) |
+| C | Item: Hold (requires purchase) |
+| U | Item: Undo Lock (requires purchase) |
 
 ## Features
 - 7 tetrominoes (I, O, T, S, Z, J, L) with standard colors
@@ -109,8 +112,10 @@ Entered from the **main menu**. Unlocks are permanent across runs and stored in
 
 ## Shop
 
-Entered from the **main menu**, separate from the skill tree. Sells single-run
-consumables for Gold; the skill tree remains the home of permanent unlocks.
+Entered from the **main menu**, separate from the skill tree. Everything here is a
+single-run consumable; the skill tree remains the home of permanent unlocks.
+
+**Gold — steady, run-shaping**
 
 | Item | Effect | Price | Stack | Type |
 |------|--------|-------|-------|------|
@@ -118,16 +123,29 @@ consumables for Gold; the skill tree remains the home of permanent unlocks.
 | Slow Start | Halves gravity for the first 60 seconds of the run | 8 Gold | 1 | Passive |
 | Extra Preview | Shows one additional upcoming piece for the whole run | 12 Gold | 1 | Passive |
 
+**Diamond — scarce, run-saving**
+
+| Item | Effect | Price | Stack | Type |
+|------|--------|-------|-------|------|
+| Hold Slot | Enables the classic hold slot for the run, used any number of times | 3 Diamond | 1 | Active (C) |
+| Undo Lock | Rewinds the last locked piece, board and score included | 4 Diamond | 1 | Active (U) |
+
 - Owned counts persist in `PlayerPrefs` and survive between runs.
 - Passive items are spent automatically when a run starts, and only if one is
-  owned. Skip Piece is spent per press.
+  owned. Active items are spent on first use, not at run start.
 - Skipping does not reroll the 7-bag — the discarded piece is simply consumed, so
   bag order is untouched.
-- Consumables are unaffected by the skill tree; the two systems share only the
-  Gold balance.
+- Hold follows the standard rule: one swap per piece, no holding twice in a row.
+- Undo restores the board snapshot taken immediately before the last lock, so any
+  line clears and score from that lock are rolled back too.
+- Consumables are independent of the skill tree; the two systems share only the
+  currency balances.
 
 ## Project layout
-- `Assets/Scripts/TetrisGame.cs` — the entire game
+- `Assets/Scripts/TetrisGame.cs` — board, pieces, input, HUD and menus
+- `Assets/Scripts/TetrisGame.Shop.cs` — shop screen and consumable behaviour
+- `Assets/Scripts/SaveData.cs` — currency and inventory persistence
+- `Assets/Scripts/ShopCatalog.cs` — shop stock, as data
 - `Assets/Scenes/Tetris.unity` — the playable scene
 
 Built with Unity + Claude Code.

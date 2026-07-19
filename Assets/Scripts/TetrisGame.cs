@@ -10,7 +10,7 @@ namespace TetrisArcade
     /// Classic arcade Tetris. Fully code-driven: builds its own sprites, board,
     /// preview and HUD at runtime. Just drop this on one GameObject and press Play.
     /// </summary>
-    public class TetrisGame : MonoBehaviour
+    public partial class TetrisGame : MonoBehaviour
     {
         // ---- Board dimensions ----
         const int Width = 10;
@@ -228,6 +228,7 @@ namespace TetrisArcade
                 for (int y = 0; y < 4; y++)
                     if (preview[x, y] != null)
                         preview[x, y].transform.position = new Vector3(previewOrigin.x + x, previewOrigin.y + y, 0);
+            LayoutPreview2();
         }
 
         // Called every frame; reconfigures only when the Game view size actually changes.
@@ -286,21 +287,28 @@ namespace TetrisArcade
             gameOver = false; paused = false;
             gravityTimer = 0; lockTimer = 0;
             bag.Clear();
+            _rewardPaid = false;
+            BeginRunItems();
             nextType = NextFromBag();
             SpawnPiece();
         }
 
+        // Refills and reshuffles the bag when it runs dry. Split out so the
+        // Extra Preview panel can peek past the current piece without draining it.
+        void EnsureBag()
+        {
+            if (bag.Count != 0) return;
+            for (int i = 0; i < 7; i++) bag.Add(i);
+            for (int i = bag.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (bag[i], bag[j]) = (bag[j], bag[i]);
+            }
+        }
+
         int NextFromBag()
         {
-            if (bag.Count == 0)
-            {
-                for (int i = 0; i < 7; i++) bag.Add(i);
-                for (int i = bag.Count - 1; i > 0; i--)
-                {
-                    int j = Random.Range(0, i + 1);
-                    (bag[i], bag[j]) = (bag[j], bag[i]);
-                }
-            }
+            EnsureBag();
             int t = bag[bag.Count - 1];
             bag.RemoveAt(bag.Count - 1);
             return t;
@@ -319,9 +327,13 @@ namespace TetrisArcade
             curY = (Height - 1) - maxOy;
 
             if (!CanPlace(curType, curRot, curX, curY))
+            {
                 gameOver = true;
+                AwardRunCurrency();
+            }
 
             gravityTimer = 0; lockTimer = 0;
+            _holdUsedThisPiece = false;   // the hold rule resets with each new piece
         }
 
         // ============================ COLLISION ============================
@@ -365,6 +377,7 @@ namespace TetrisArcade
 
         void LockPiece()
         {
+            SnapshotForUndo();
             var s = SHAPES[curType][curRot];
             for (int i = 0; i < 4; i++)
             {
@@ -415,7 +428,7 @@ namespace TetrisArcade
             CheckLayout();
             if (inMenu)
             {
-                if (!_inSettings && StartPressed()) { NewGame(); inMenu = false; }
+                if (!_inSettings && !_inShop && StartPressed()) { NewGame(); inMenu = false; }
                 Redraw();
                 return;
             }
@@ -426,6 +439,11 @@ namespace TetrisArcade
                       out bool leftHeld, out bool rightHeld);
 
             if (restart) { NewGame(); Redraw(); return; }
+
+            // Runs before the game-over gate on purpose: Undo Lock is meant to be
+            // able to rewind the very lock that ended the run.
+            HandleItemKeys();
+
             if (gameOver) { Redraw(); return; }
             if (doPause) paused = !paused;
             if (paused) { Redraw(); return; }
@@ -462,7 +480,7 @@ namespace TetrisArcade
 
             // Gravity (soft drop speeds it up)
             gravityTimer += dt;
-            float interval = downHeld ? softInterval : fallInterval;
+            float interval = downHeld ? softInterval : CurrentFallInterval();
             if (gravityTimer >= interval)
             {
                 gravityTimer = 0;
@@ -526,6 +544,8 @@ namespace TetrisArcade
                     if (x >= 0 && x < 4 && y >= 0 && y < 4) preview[x, y].color = COLORS[nextType];
                 }
             }
+
+            RedrawPreview2();
         }
 
         // ============================ INPUT ============================
@@ -616,6 +636,7 @@ namespace TetrisArcade
             if (inMenu)
             {
                 if (_inSettings) DrawSettingsPanel();
+                else if (_inShop) DrawShopScreen();
                 else DrawTitleMenu();
                 return;
             }
@@ -819,6 +840,7 @@ namespace TetrisArcade
                 if (inMenu)
                 {
                     if (_inSettings) { _inSettings = false; _resOpen = false; e.Use(); }
+                    else if (_inShop) { _inShop = false; e.Use(); }
                     return;   // no pause menu on the title screen
                 }
                 if (showSettings && _inSettings) _inSettings = false;   // settings -> main pause menu
@@ -982,7 +1004,7 @@ namespace TetrisArcade
 
             float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f, titleH = fs * 3.2f;
             float panelW = Mathf.Round(Mathf.Clamp(fs * 18f, 320f, Screen.width * 0.9f));
-            string[] items = { "START", "SETTINGS", "QUIT" };
+            string[] items = { "START", "SHOP", "SETTINGS", "QUIT" };
             float panelH = Mathf.Round(titleH + gap + items.Length * (btnH + gap) + pad * 2f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -998,6 +1020,9 @@ namespace TetrisArcade
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "START", _menuClose))
             { NewGame(); inMenu = false; Redraw(); }
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
+            { _inShop = true; _shopMessage = ""; }
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
             { _inSettings = true; _resOpen = false; }
