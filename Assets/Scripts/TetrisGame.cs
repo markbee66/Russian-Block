@@ -287,7 +287,6 @@ namespace TetrisArcade
                 for (int y = 0; y < 4; y++)
                     if (preview[x, y] != null)
                         preview[x, y].transform.position = new Vector3(previewOrigin.x + x, previewOrigin.y + y, 0);
-            LayoutPreview2();
         }
 
         // Called every frame; reconfigures only when the Game view size actually changes.
@@ -349,7 +348,6 @@ namespace TetrisArcade
             gameOver = false; paused = false;
             gravityTimer = 0; lockTimer = 0;
             bag.Clear();
-            _afterNext = -1;
             _rewardPaid = false;
             BeginRunItems(spendItems);
             BeginRunSkills();
@@ -370,21 +368,10 @@ namespace TetrisArcade
             }
         }
 
-        // One slot of already-mutated lookahead. Extra Preview needs to show the
-        // piece after next, and the mutation roll is random, so it has to be
-        // rolled once and remembered rather than re-rolled when the piece arrives.
-        int _afterNext = -1;
-
-        // The bag still decides the base piece, so bag fairness is untouched; the
-        // mutation is applied to whatever it hands over.
+        // The bag still decides the base piece, so bag fairness is untouched;
+        // the mutation is applied to whatever it hands over.
         int NextFromBag()
         {
-            if (_afterNext >= 0)
-            {
-                int held = _afterNext;
-                _afterNext = -1;
-                return held;
-            }
             EnsureBag();
             int t = bag[bag.Count - 1];
             bag.RemoveAt(bag.Count - 1);
@@ -648,7 +635,6 @@ namespace TetrisArcade
                 }
             }
 
-            RedrawPreview2();
             ApplyTargetHighlight();
         }
 
@@ -777,8 +763,6 @@ namespace TetrisArcade
                 WLabel(11f, 2.8f, "Space  Hard drop", _small, 220);
                 WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
             }
-
-            DrawPreview2Label();
 
             if (gameOver)
             {

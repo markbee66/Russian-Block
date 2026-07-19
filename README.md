@@ -50,9 +50,7 @@ Normal pieces take whatever is left — 84.6% at level 0 across the board, 87.7%
 with every ward maxed and bombs left alone.
 
 The piece type is still drawn from the 7-bag first; the mutation then transforms
-that draw, so bag fairness is preserved. Both preview panels show the mutated
-result, which is why the piece after next is rolled once and parked in a
-lookahead slot rather than re-rolled on arrival.
+that draw, so bag fairness is preserved. The NEXT panel shows the mutated result.
 
 ### Bomb (1x1)
 - Single cell in one of three kinds at equal 1/3 odds, each its own colour so the
@@ -143,7 +141,6 @@ single-run consumable; the skill tree remains the home of permanent unlocks.
 |------|--------|-------|-------|------|
 | Skip Piece | Discards the current piece and pulls the next one | 5 Gold | 3 | Active (F) |
 | Slow Start | Halves gravity for the first 60 seconds of the run | 8 Gold | 1 | Passive |
-| Extra Preview | Shows one additional upcoming piece for the whole run | 12 Gold | 1 | Passive |
 
 **Diamond — scarce, run-saving**
 

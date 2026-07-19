@@ -173,7 +173,6 @@ namespace TetrisArcade
         // ============================ RUN STATE ============================
 
         bool _slowStart;            // Slow Start active for this run
-        bool _extraPreview;         // Extra Preview active for this run
         float _runTime;             // seconds since the run began (drives Slow Start)
 
         bool _holdUnlocked;         // Hold Slot paid for during this run
@@ -201,7 +200,6 @@ namespace TetrisArcade
 
             // Passives are paid for up front, and only if one is actually owned.
             _slowStart = spend && SaveData.ConsumeItem(ShopCatalog.SlowStart);
-            _extraPreview = spend && SaveData.ConsumeItem(ShopCatalog.ExtraPreview);
         }
 
         /// <summary>Gravity interval for this frame, with Slow Start folded in.</summary>
@@ -295,89 +293,6 @@ namespace TetrisArcade
                 gravityTimer = 0; lockTimer = 0;
             }
             _holdUsedThisPiece = true;
-        }
-
-        // ============================ EXTRA PREVIEW ============================
-
-        // A second 4x4 panel under the NEXT panel, created the first time a run
-        // actually has the item so the objects cost nothing otherwise.
-        SpriteRenderer[,] _prev2;
-        SpriteRenderer _prev2BG;
-
-        Vector3 Preview2Origin => new Vector3(previewOrigin.x, previewOrigin.y - 5f, 0);
-
-        void EnsurePreview2()
-        {
-            if (_prev2 != null) return;
-            _prev2 = new SpriteRenderer[4, 4];
-            Vector3 o = Preview2Origin;
-            _prev2BG = MakeSR("Preview2BG", transform, new Vector3(o.x + 1.5f, o.y + 1.5f, 0),
-                              new Vector3(4.6f, 4.6f, 1), wellColor, 1);
-            for (int x = 0; x < 4; x++)
-                for (int y = 0; y < 4; y++)
-                    _prev2[x, y] = MakeSR($"Prev2_{x}_{y}", transform, new Vector3(o.x + x, o.y + y, 0),
-                                          new Vector3(0.85f, 0.85f, 1), panelEmpty, 2);
-        }
-
-        /// <summary>Keeps the second panel glued to the first when the layout changes.</summary>
-        void LayoutPreview2()
-        {
-            if (_prev2 == null) return;
-            Vector3 o = Preview2Origin;
-            _prev2BG.transform.position = new Vector3(o.x + 1.5f, o.y + 1.5f, 0);
-            for (int x = 0; x < 4; x++)
-                for (int y = 0; y < 4; y++)
-                    _prev2[x, y].transform.position = new Vector3(o.x + x, o.y + y, 0);
-        }
-
-        /// <summary>Called at the end of Redraw. Draws the piece after NEXT.</summary>
-        void RedrawPreview2()
-        {
-            bool show = _extraPreview && !inMenu && !gameOver;
-            if (!show)
-            {
-                if (_prev2 != null)
-                {
-                    _prev2BG.enabled = false;
-                    foreach (var sr in _prev2) sr.enabled = false;
-                }
-                return;
-            }
-
-            EnsurePreview2();
-            _prev2BG.enabled = true;
-            foreach (var sr in _prev2) sr.enabled = true;
-
-            for (int x = 0; x < 4; x++)
-                for (int y = 0; y < 4; y++)
-                    _prev2[x, y].color = panelEmpty;
-
-            int after = PeekAfterNext();
-            if (after < 0) return;
-            var s = CellsOf(after, 0);
-            for (int i = 0; i < s.Length / 2; i++)
-            {
-                int x = s[i * 2], y = s[i * 2 + 1];
-                if (x >= 0 && x < 4 && y >= 0 && y < 4) _prev2[x, y].color = COLORS[after];
-            }
-        }
-
-        /// <summary>
-        /// The piece queued behind nextType. Draws and mutates it once, then
-        /// parks it in the lookahead slot so the preview and the piece that
-        /// eventually arrives are the same thing.
-        /// </summary>
-        int PeekAfterNext()
-        {
-            if (_afterNext < 0)
-            {
-                EnsureBag();
-                if (bag.Count == 0) return -1;
-                int b = bag[bag.Count - 1];
-                bag.RemoveAt(bag.Count - 1);
-                _afterNext = ApplyMutation(b);
-            }
-            return _afterNext;
         }
 
         /// <summary>Captures the pre-lock state so Undo can rewind to it.</summary>

@@ -67,7 +67,6 @@ namespace TetrisArcade
                 lines.Add("Slow Start  " + Mathf.CeilToInt(60f - _runTime) + "s");
                 dim.Add(false);
             }
-            if (_extraPreview) { lines.Add("Extra Preview  on"); dim.Add(false); }
 
             if (lines.Count == 0) return;
 
@@ -81,17 +80,6 @@ namespace TetrisArcade
                     : new Color(0.75f, 0.82f, 0.9f);
                 GUI.Label(new Rect(x, y + i * lineH, fs * 14f, lineH), lines[i], _small);
             }
-        }
-
-        /// <summary>
-        /// Labels the second preview panel. Without this the extra piece just
-        /// appears one day with no explanation of where it came from.
-        /// </summary>
-        void DrawPreview2Label()
-        {
-            if (!_extraPreview || inMenu || gameOver) return;
-            float dy = portrait ? 3.9f : 4.2f;
-            WLabel(previewOrigin.x, previewOrigin.y - 5f + dy, "AFTER", _label, 200);
         }
 
         // ============================ TARGETING ============================

@@ -37,7 +37,6 @@ namespace TetrisArcade
         // rather than loose strings.
         public const string SkipPiece    = "skip";
         public const string SlowStart    = "slow";
-        public const string ExtraPreview = "preview";
         public const string HoldSlot     = "hold";
         public const string UndoLock     = "undo";
 
@@ -47,8 +46,6 @@ namespace TetrisArcade
                      "Throw away the current piece", 5, 0, 3),
             new Item(SlowStart, "SLOW START",
                      "Half gravity for the first 60s", 8, 0, 1),
-            new Item(ExtraPreview, "EXTRA PREVIEW",
-                     "See one more piece ahead", 12, 0, 1),
             new Item(HoldSlot, "HOLD SLOT",
                      "Classic hold slot for the run", 0, 3, 1),
             new Item(UndoLock, "UNDO LOCK",
