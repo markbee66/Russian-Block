@@ -136,8 +136,12 @@ namespace TetrisArcade
         readonly Color bgColor    = new Color(0.03f, 0.03f, 0.06f);
         readonly Color wellColor  = new Color(0.07f, 0.07f, 0.11f, 0.82f);
         readonly Color emptyCell  = new Color(0.12f, 0.12f, 0.17f, 0.70f);
-        readonly Color accent     = new Color(0.20f, 0.85f, 0.95f);
+        readonly Color accent     = new Color(0.16f, 0.58f, 0.66f);
         readonly Color panelEmpty = new Color(0.10f, 0.10f, 0.15f, 0.70f);
+
+        // The frame around the well is the largest block of colour on screen, so
+        // it runs darker than the accent used for text, which still has to read.
+        readonly Color borderColor = new Color(0.09f, 0.28f, 0.34f);
 
         // ---- Camera framing (set by ConfigureLayout based on the aspect ratio) ----
         float camX = 6f, camY = 10f, camSize = 12f;
@@ -320,7 +324,7 @@ namespace TetrisArcade
         void BuildVisuals()
         {
             // Border + well behind the playfield
-            MakeSR("Border", transform, new Vector3(4.5f, 9.5f, 0), new Vector3(Width + 0.7f, Height + 0.7f, 1), accent, 0);
+            MakeSR("Border", transform, new Vector3(4.5f, 9.5f, 0), new Vector3(Width + 0.7f, Height + 0.7f, 1), borderColor, 0);
             MakeSR("Well",   transform, new Vector3(4.5f, 9.5f, 0), new Vector3(Width + 0.3f, Height + 0.3f, 1), wellColor, 1);
 
             // Playfield cells

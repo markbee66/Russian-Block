@@ -21,6 +21,12 @@ namespace TetrisArcade
         // straight through and washes the board out.
         static readonly Color BackdropTint = new Color(0.42f, 0.42f, 0.46f, 1f);
 
+        // Which height of the picture, measured from the top, should sit at the
+        // centre of the view. The current art has its eyes about 26% down, so
+        // anchoring here keeps the face in frame when the sides are cropped.
+        // 0 = top edge, 0.5 = centred, 1 = bottom edge.
+        const float BackdropFocusY = 0.30f;
+
         SpriteRenderer _backdrop;
         float _backdropAspect = 1f;
 
@@ -54,9 +60,9 @@ namespace TetrisArcade
         }
 
         /// <summary>
-        /// Fits the whole picture inside the camera view, never cropping it. The
-        /// aspect ratio is kept, so a picture shaped differently to the window
-        /// leaves a margin rather than losing its edges.
+        /// Fills the camera view, cropping the overhang. A tall picture in a wide
+        /// window loses most of its height, so the crop is anchored on
+        /// BackdropFocusY instead of the middle — centring it cuts the face off.
         /// </summary>
         void LayoutBackdrop()
         {
@@ -65,11 +71,24 @@ namespace TetrisArcade
             float viewH = cam.orthographicSize * 2f;
             float viewW = viewH * ((float)Screen.width / Mathf.Max(1, Screen.height));
 
-            // Contain: the smaller scale, so both axes fit inside the view.
-            float scale = Mathf.Min(viewH, viewW / _backdropAspect);
+            // Cover: the larger scale, so neither axis can leave a gap.
+            float scale = Mathf.Max(viewH, viewW / _backdropAspect);
+            float spriteH = scale;
+            float spriteW = scale * _backdropAspect;
 
-            _backdrop.transform.position = new Vector3(cam.transform.position.x,
-                                                       cam.transform.position.y, 0f);
+            float camXPos = cam.transform.position.x;
+            float camYPos = cam.transform.position.y;
+
+            // Shift so the focus point sits at the centre of the view, then clamp
+            // so the picture can never pull away from an edge and show a gap.
+            float offsetY = (0.5f - BackdropFocusY) * spriteH;
+            float limitY = Mathf.Max(0f, (spriteH - viewH) * 0.5f);
+            offsetY = Mathf.Clamp(offsetY, -limitY, limitY);
+
+            float limitX = Mathf.Max(0f, (spriteW - viewW) * 0.5f);
+
+            _backdrop.transform.position =
+                new Vector3(camXPos + Mathf.Clamp(0f, -limitX, limitX), camYPos + offsetY, 0f);
             _backdrop.transform.localScale = new Vector3(scale, scale, 1f);
         }
     }
