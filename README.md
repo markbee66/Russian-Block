@@ -166,6 +166,8 @@ single-run consumable; the skill tree remains the home of permanent unlocks.
 - `Assets/Scripts/TetrisGame.Skills.cs` — skill tree screen and the three skills
 - `Assets/Scripts/TetrisGame.Mutations.cs` — mutation rolling, bombs, rate tables
 - `Assets/Scripts/TetrisGame.Hud.cs` — toast, item/skill readouts, targeting
+- `Assets/Scripts/TetrisGame.Background.cs` — the picture backdrop
+- `Assets/Resources/pic_assests/` — backdrop image; drop a new one in to swap it
 - `Assets/Scripts/TetrisGame.Admin.cs` — F9 testing panel, safe to delete
 - `Assets/Scripts/SaveData.cs` — currency and inventory persistence
 - `Assets/Scripts/ShopCatalog.cs` — shop stock, as data

@@ -178,6 +178,7 @@ namespace TetrisArcade
             lastScreenW = Screen.width; lastScreenH = Screen.height;
             ConfigureLayout();
             SetupCamera();
+            SetupBackdrop();
             BuildVisuals();
             SetupAudio();
             NewGame();
@@ -276,6 +277,7 @@ namespace TetrisArcade
             if (cam == null) return;
             cam.orthographicSize = camSize;
             cam.transform.position = new Vector3(camX, camY, -10f);
+            LayoutBackdrop();   // the backdrop is sized off the camera view
         }
 
         // Re-place the preview panel objects after the layout origin changes.
