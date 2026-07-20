@@ -1022,8 +1022,9 @@ namespace TetrisArcade
                 RestartRun();
             y += btnH + gap;
             // Named MAIN MENU, not QUIT: only the title screen's QUIT exits the app.
+            // Confirmed because it throws away the run in progress.
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "MAIN MENU", _menuClose))
-                GoTitle();
+                AskConfirm("Abandon this run?", GoTitle);
         }
 
         // Title screen shown on launch: a big title over START / SETTINGS / QUIT.
@@ -1070,8 +1071,9 @@ namespace TetrisArcade
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "ADMIN", _menuClose))
                 ToggleAdmin();
             y += btnH + gap;
+            // The only true exit in the game, so it asks first.
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
-                Application.Quit();
+                AskConfirm("Quit the game?", Application.Quit);
         }
 
         // Enter/Return also starts the game from the title screen (buttons still work).

@@ -135,6 +135,7 @@ namespace TetrisArcade
                     case MenuScreen.Skills:    DrawSkillTreeScreen(); break;
                     case MenuScreen.PauseMenu: DrawPauseMenu();       break;
                     case MenuScreen.Admin:     DrawAdminPanel();     break;
+                    case MenuScreen.Confirm:   DrawConfirmDialog();  break;
                 }
 
             // In-game chrome only when nothing is layered over the board.
@@ -145,6 +146,59 @@ namespace TetrisArcade
                 DrawItemHud();
                 DrawTargetingBanner();
                 DrawToast();
+            }
+        }
+
+        /// <summary>
+        /// A small YES/NO prompt for the actions that throw progress away.
+        /// Non-opaque, so the menu that raised it stays visible behind.
+        /// </summary>
+        void DrawConfirmDialog()
+        {
+            int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
+            _menuClose.fontSize = fs;
+
+            float pad = fs * 0.9f, btnH = fs * 2.4f, gap = fs * 0.6f, textH = fs * 2.2f;
+            float panelW = Mathf.Round(Mathf.Clamp(fs * 16f, 300f, Screen.width * 0.8f));
+            float panelH = Mathf.Round(textH + gap + btnH + pad * 2f);
+            float px = Mathf.Round((Screen.width - panelW) * 0.5f);
+            float py = Mathf.Round((Screen.height - panelH) * 0.5f);
+            float innerX = px + pad, innerW = panelW - pad * 2f;
+
+            // Heavier dim than the other screens: the menu underneath is still
+            // legible for context, but must not compete with the prompt.
+            GUI.color = new Color(0f, 0f, 0f, 0.82f);
+            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _whiteTex);
+
+            // Opaque plate behind the prompt so it never blends into the buttons
+            // of the menu it is sitting on.
+            GUI.color = new Color(0.05f, 0.05f, 0.08f, 1f);
+            GUI.DrawTexture(new Rect(px, py, panelW, panelH), _whiteTex);
+            GUI.color = Color.white;
+
+            GUI.Box(new Rect(px, py, panelW, panelH), GUIContent.none, _menuBox);
+
+            _menuTitle.fontSize = Mathf.RoundToInt(fs * 1.2f);
+            _menuTitle.normal.textColor = accent;
+            float y = py + pad;
+            GUI.Label(new Rect(px, y, panelW, textH), _confirmText, _menuTitle);
+            y += textH + gap;
+
+            float half = (innerW - gap) * 0.5f;
+            if (GUI.Button(new Rect(innerX, y, half, btnH), "YES", _menuClose))
+            {
+                // Pop first: the action may PopAll()/GoTitle(), and popping
+                // afterwards would then eat a layer it never pushed.
+                var act = _confirmAction;
+                Pop();
+                _confirmAction = null;
+                if (act != null) act();
+                return;
+            }
+            if (GUI.Button(new Rect(innerX + half + gap, y, half, btnH), "NO", _menuClose))
+            {
+                _confirmAction = null;
+                Pop();
             }
         }
 

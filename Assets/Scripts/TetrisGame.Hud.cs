@@ -28,7 +28,7 @@ namespace TetrisArcade
 
                 // Controls (below the board)
                 WLabel(4.5f, -2.3f, "← →  Move    ↑ / X  Rotate    ↓  Soft", _smallC, 900);
-                WLabel(4.5f, -3.4f, "Space  Hard drop  ·  P Pause  ·  R Restart", _smallC, 900);
+                WLabel(4.5f, -3.4f, "Space  Hard drop  ·  P / Esc  Menu  ·  R Restart", _smallC, 900);
             }
             else
             {
@@ -46,7 +46,7 @@ namespace TetrisArcade
                 WLabel(11f, 4.0f, "↑ / X  Rotate", _small, 220);
                 WLabel(11f, 3.4f, "↓  Soft drop", _small, 220);
                 WLabel(11f, 2.8f, "Space  Hard drop", _small, 220);
-                WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
+                WLabel(11f, 2.2f, "P / Esc  Menu · R Restart", _small, 220);
             }
         }
 
