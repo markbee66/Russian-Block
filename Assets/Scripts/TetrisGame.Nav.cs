@@ -6,8 +6,8 @@ namespace TetrisArcade
     /// <summary>
     /// Single source of truth for which menu screen (if any) is on top, and
     /// whether a run is in progress. Replaces the old scattered flags
-    /// (inMenu / _inSettings / _inShop / _inSkills / showSettings / _adminOpen /
-    /// paused) with one navigation stack plus one run-state bool.
+    /// (inMenu / _inSettings / _inShop / _inSkills / showSettings, and later
+    /// _adminOpen / paused) with one navigation stack plus one run-state bool.
     ///
     /// MenuScreen does NOT include Title or GameOver:
     /// - Title is the root shown whenever !_runActive (no separate flag needed).
@@ -100,6 +100,72 @@ namespace TetrisArcade
             _confirmText = text;
             _confirmAction = onYes;
             Push(MenuScreen.Confirm);
+        }
+
+        // ============================ DISPATCH ============================
+
+        /// <summary>
+        /// The single place that decides what is on screen. Draws the root
+        /// layer (title, or the board plus its overlays) and then every stack
+        /// entry from the topmost opaque one upward, so non-opaque screens
+        /// (Admin, Confirm) still show what they are sitting on.
+        /// </summary>
+        void DrawScreens()
+        {
+            int from = 0;
+            for (int i = _nav.Count - 1; i >= 0; i--)
+                if (IsOpaque(_nav[i])) { from = i; break; }
+
+            bool rootVisible = _nav.Count == 0 || !IsOpaque(_nav[from]);
+            if (rootVisible)
+            {
+                if (!_runActive) DrawTitleMenu();
+                else
+                {
+                    DrawGameHud();
+                    if (gameOver) DrawGameOverPanel();
+                    else if (paused) WLabel(4.5f, 10.5f, "PAUSED", _big, 400);
+                }
+            }
+
+            for (int i = from; i < _nav.Count; i++)
+                switch (_nav[i])
+                {
+                    case MenuScreen.Settings:  DrawSettingsPanel();   break;
+                    case MenuScreen.Shop:      DrawShopScreen();      break;
+                    case MenuScreen.Skills:    DrawSkillTreeScreen(); break;
+                    case MenuScreen.PauseMenu: DrawPauseMenu();       break;
+                }
+
+            // In-game chrome only when nothing is layered over the board.
+            if (!ScreenOpen && _runActive)
+            {
+                DrawSettingsButton();
+                DrawSkillHud();
+                DrawItemHud();
+                DrawTargetingBanner();
+                DrawToast();
+            }
+        }
+
+        /// <summary>
+        /// Escape backs out exactly one layer, everywhere. Lives here rather
+        /// than in Update() because it needs Event.current.
+        /// </summary>
+        void HandleBackKey()
+        {
+            var e = Event.current;
+            if (e.type != EventType.KeyDown || e.keyCode != KeyCode.Escape) return;
+
+            // Targeting is a modal sub-state of play and wins over everything.
+            if (_targeting) { _targeting = false; Toast("Cancelled"); e.Use(); return; }
+
+            if (ScreenOpen) { Pop(); e.Use(); return; }
+
+            // Empty stack: in a live run Escape opens the pause menu. On the
+            // title root, or on the game-over panel, there is nothing to back
+            // out of, so the event is left unconsumed.
+            if (_runActive && !gameOver) { Push(MenuScreen.PauseMenu); e.Use(); }
         }
     }
 }

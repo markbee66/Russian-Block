@@ -14,7 +14,7 @@ namespace TetrisArcade
     {
         // ============================ SKILL TREE SCREEN ============================
 
-        bool _inSkills;
+        // Skill tree page is a MenuScreen entry on _nav now.
         string _skillMessage = "";
         float _skillMessageUntil;
 
@@ -72,7 +72,7 @@ namespace TetrisArcade
             }
 
             if (GUI.Button(new Rect(innerX, py + panelH - closeH - pad, innerW, closeH), "BACK", _menuClose))
-                _inSkills = false;
+                Pop();
         }
 
         // One branch heading plus a row per node. Returns the next free y.

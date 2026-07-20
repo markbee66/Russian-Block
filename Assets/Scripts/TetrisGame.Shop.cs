@@ -14,7 +14,7 @@ namespace TetrisArcade
     {
         // ============================ SHOP SCREEN ============================
 
-        bool _inShop;                  // shop page open (only reachable from the title screen)
+        // Shop page is a MenuScreen entry on _nav now.
         string _shopMessage = "";      // transient "bought" / "can't afford" line
         float _shopMessageUntil;
 
@@ -100,7 +100,7 @@ namespace TetrisArcade
             }
 
             if (GUI.Button(new Rect(innerX, py + panelH - closeH - pad, innerW, closeH), "BACK", _menuClose))
-                _inShop = false;
+                Pop();
         }
 
         // ============================ GAME OVER ============================
@@ -146,30 +146,18 @@ namespace TetrisArcade
             y += rewardH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RETRY", _menuClose))
-            { NewGame(); Redraw(); }
+                RestartRun();
             y += btnH + gap;
 
-            // Restocking is the main thing you want after dying, so the shop is
-            // reachable here instead of only from the title screen.
+            // Restocking is the main thing you want after dying. The shop now
+            // stacks on top of this panel, so backing out returns here with the
+            // score and reward line intact instead of dropping to the title.
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
-            {
-                inMenu = true;
-                _runActive = false;
-                _inShop = true;
-                _shopMessage = "";
-                NewGame(false);
-                Redraw();
-            }
+                Push(MenuScreen.Shop);
             y += btnH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "MAIN MENU", _menuClose))
-            {
-                showSettings = false; _inSettings = false; _resOpen = false;
-                inMenu = true;
-                _runActive = false;
-                NewGame(false);   // reset the board without charging for passives
-                Redraw();
-            }
+                GoTitle();
         }
 
         // ============================ RUN STATE ============================

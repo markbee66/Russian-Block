@@ -156,7 +156,7 @@ namespace TetrisArcade
 
         int score, lines, level;
         bool gameOver, paused;
-        bool inMenu = true;         // title screen (START / SETTINGS / QUIT) shown on launch
+        // Title/run state now lives in _runActive (TetrisGame.Nav.cs).
 
         // ---- Timers ----
         float gravityTimer, lockTimer;
@@ -512,13 +512,15 @@ namespace TetrisArcade
         {
             CheckLayout();
             HandleAdminHotkey();
-            if (inMenu)
+            // Any open menu screen freezes everything.
+            if (ScreenOpen) { Redraw(); return; }
+            // Title root: nothing to simulate, just wait for START.
+            if (!_runActive)
             {
-                if (!_inSettings && !_inShop && !_inSkills && StartPressed()) { NewGame(); inMenu = false; _runActive = true; }
+                if (StartPressed()) StartRun();
                 Redraw();
                 return;
             }
-            if (showSettings) { Redraw(); return; }
 
             ReadInput(out bool left, out bool right, out bool cw, out bool ccw,
                       out bool downHeld, out bool hard, out bool doPause, out bool restart,
@@ -606,7 +608,7 @@ namespace TetrisArcade
                 for (int y = 0; y < Height; y++)
                     cells[x, y].color = board[x, y] >= 0 ? COLORS[board[x, y]] : emptyCell;
 
-            if (!gameOver && !inMenu)
+            if (!gameOver && _runActive)
             {
                 // ghost
                 int gy = GhostY();
@@ -633,7 +635,7 @@ namespace TetrisArcade
             for (int x = 0; x < 4; x++)
                 for (int y = 0; y < 4; y++)
                     preview[x, y].color = panelEmpty;
-            if (nextType >= 0 && !inMenu)
+            if (nextType >= 0 && _runActive)
             {
                 var ns = CellsOf(nextType, 0);
                 for (int i = 0; i < ns.Length / 2; i++)
@@ -684,8 +686,7 @@ namespace TetrisArcade
 
         GUIStyle _label, _value, _title, _big, _small, _stat, _smallC;
         GUIStyle _gearBtn, _menuBox, _menuTitle, _menuBtn, _menuClose, _menuField;
-        bool showSettings;              // pause menu open?
-        bool _inSettings;               // on the settings sub-page (vs the main pause menu)?
+        // Pause menu / settings page are MenuScreen entries on _nav now.
         bool _resOpen;                  // RES dropdown expanded?
         Vector2 _resScroll;
         bool _resSeeded;                // scrolled-to-current on open?
@@ -701,7 +702,7 @@ namespace TetrisArcade
         void OnGUI()
         {
             if (cam == null) return;
-            HandleSettingsHotkey();
+            HandleBackKey();
             int fs = Mathf.Max(12, Mathf.RoundToInt(Screen.height * 0.026f * _uiScale));
 
             if (_label == null)
@@ -731,39 +732,9 @@ namespace TetrisArcade
             _stat.fontSize  = Mathf.RoundToInt(fs * 1.15f); _stat.normal.textColor = Color.white;
             _smallC.fontSize = Mathf.RoundToInt(fs * 0.85f); _smallC.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
 
-            // Title screen replaces the whole in-game HUD until the player presses START.
-            if (inMenu)
-            {
-                if (_inSettings) DrawSettingsPanel();
-                else if (_inShop) DrawShopScreen();
-                else if (_inSkills) DrawSkillTreeScreen();
-                else DrawTitleMenu();
-                if (_adminOpen) DrawAdminPanel();
-                return;
-            }
+            DrawScreens();
 
-            DrawGameHud();
-
-            if (gameOver)
-            {
-                DrawGameOverPanel();
-            }
-            else if (paused)
-            {
-                WLabel(4.5f, 10.5f, "PAUSED", _big, 400);
-            }
-
-            if (!showSettings)
-            {
-                DrawSettingsButton();
-                DrawSkillHud();
-                DrawItemHud();
-                DrawTargetingBanner();
-                DrawToast();
-            }
-            else if (_inSettings) DrawSettingsPanel();
-            else DrawPauseMenu();
-
+            // Admin still draws on top of everything; Stage 5 moves it onto the stack.
             if (_adminOpen) DrawAdminPanel();
         }
 
@@ -912,40 +883,13 @@ namespace TetrisArcade
             return (w / a) + ":" + (h / a);
         }
 
-        void HandleSettingsHotkey()
-        {
-            var e = Event.current;
-            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
-            {
-                if (inMenu)
-                {
-                    if (_inSettings) { _inSettings = false; _resOpen = false; e.Use(); }
-                    else if (_inShop) { _inShop = false; e.Use(); }
-                    else if (_inSkills) { _inSkills = false; e.Use(); }
-                    return;   // no pause menu on the title screen
-                }
-
-                // While picking a Block Remove target, Esc backs out of that
-                // rather than opening the pause menu.
-                if (_targeting) { _targeting = false; Toast("Cancelled"); e.Use(); return; }
-                if (showSettings && _inSettings) _inSettings = false;   // settings -> main pause menu
-                else showSettings = !showSettings;                      // open / close the menu
-                _resOpen = false;
-                e.Use();
-            }
-        }
-
         void DrawSettingsButton()
         {
             float bh = Mathf.Max(40f, Screen.height * 0.07f);
             float bw = bh * 3.4f;
             _gearBtn.fontSize = Mathf.RoundToInt(bh * 0.4f);
             if (GUI.Button(new Rect(Screen.width - bw - 12f, 12f, bw, bh), "MENU", _gearBtn))
-            {
-                showSettings = true;
-                _inSettings = false;
-                _resOpen = false;
-            }
+                Push(MenuScreen.PauseMenu);
         }
 
         static readonly int[] FPS_VALUES = { -1, 30, 60, 90, 120, 144, 165, 240 };
@@ -1033,7 +977,7 @@ namespace TetrisArcade
             }
 
             if (GUI.Button(new Rect(innerX, py + panelH - closeH - pad, innerW, closeH), "BACK", _menuClose))
-                _inSettings = false;
+                Pop();
         }
 
         // Minecraft-style main pause menu: a vertical stack of full-width buttons.
@@ -1048,7 +992,7 @@ namespace TetrisArcade
 
             float pad = fs * 0.9f, btnH = fs * 2.6f, gap = fs * 0.7f, titleH = fs * 2.4f;
             float panelW = Mathf.Round(Mathf.Clamp(fs * 18f, 320f, Screen.width * 0.9f));
-            string[] items = { "RESUME", "SETTINGS", "RESTART", "QUIT" };
+            string[] items = { "RESUME", "SHOP", "SKILLS", "SETTINGS", "RESTART", "MAIN MENU" };
             float panelH = Mathf.Round(titleH + gap + items.Length * (btnH + gap) + pad * 2f);
             float px = Mathf.Round((Screen.width - panelW) * 0.5f);
             float py = Mathf.Round((Screen.height - panelH) * 0.5f);
@@ -1063,17 +1007,25 @@ namespace TetrisArcade
             y += titleH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RESUME", _menuClose))
-                showSettings = false;
+                Pop();
+            y += btnH + gap;
+            // Shop and skills are reachable mid-run now: they stack on top of the
+            // pause menu, so backing out returns here with the run untouched.
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
+                Push(MenuScreen.Shop);
+            y += btnH + gap;
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SKILLS", _menuClose))
+                Push(MenuScreen.Skills);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
-            { _inSettings = true; _resOpen = false; }
+                Push(MenuScreen.Settings);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "RESTART", _menuClose))
-            { NewGame(); Redraw(); showSettings = false; }
+                RestartRun();
             y += btnH + gap;
-            // QUIT here returns to the title screen; only the title's QUIT exits the app.
-            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
-            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; _runActive = false; NewGame(false); Redraw(); }
+            // Named MAIN MENU, not QUIT: only the title screen's QUIT exits the app.
+            if (GUI.Button(new Rect(innerX, y, innerW, btnH), "MAIN MENU", _menuClose))
+                GoTitle();
         }
 
         // Title screen shown on launch: a big title over START / SETTINGS / QUIT.
@@ -1106,16 +1058,16 @@ namespace TetrisArcade
             y += titleH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "START", _menuClose))
-            { NewGame(); inMenu = false; _runActive = true; Redraw(); }
+                StartRun();
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
-            { _inShop = true; _shopMessage = ""; }
+                Push(MenuScreen.Shop);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SKILLS", _menuClose))
-            { _inSkills = true; _skillMessage = ""; }
+                Push(MenuScreen.Skills);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SETTINGS", _menuClose))
-            { _inSettings = true; _resOpen = false; }
+                Push(MenuScreen.Settings);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "ADMIN", _menuClose))
                 _adminOpen = !_adminOpen;
