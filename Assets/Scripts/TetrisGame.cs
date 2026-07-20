@@ -155,7 +155,7 @@ namespace TetrisArcade
         readonly List<int> bag = new List<int>();
 
         int score, lines, level;
-        bool gameOver, paused;
+        bool gameOver;   // paused is gone: the pause menu is a MenuScreen now
         // Title/run state now lives in _runActive (TetrisGame.Nav.cs).
 
         // ---- Timers ----
@@ -354,7 +354,7 @@ namespace TetrisArcade
 
             score = 0; lines = 0; level = 0;
             fallInterval = 0.8f;
-            gameOver = false; paused = false;
+            gameOver = false;
             gravityTimer = 0; lockTimer = 0;
             bag.Clear();
             _rewardPaid = false;
@@ -526,15 +526,16 @@ namespace TetrisArcade
                       out bool downHeld, out bool hard, out bool doPause, out bool restart,
                       out bool leftHeld, out bool rightHeld);
 
-            if (restart) { NewGame(); Redraw(); return; }
+            if (restart) { RestartRun(); return; }
 
             // Runs before the game-over gate on purpose: Undo Lock is meant to be
             // able to rewind the very lock that ended the run.
             HandleItemKeys();
 
             if (gameOver) { Redraw(); return; }
-            if (doPause) paused = !paused;
-            if (paused) { Redraw(); return; }
+            // P is just a shortcut for the pause menu now, so there is only ever
+            // one paused state and one way out of it.
+            if (doPause) { Push(MenuScreen.PauseMenu); Redraw(); return; }
 
             HandleSkillKeys();
             // Block Remove freezes the run while the player picks a target.
