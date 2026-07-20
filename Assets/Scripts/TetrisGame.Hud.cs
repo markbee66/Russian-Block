@@ -11,6 +11,45 @@ namespace TetrisArcade
     /// </summary>
     public partial class TetrisGame
     {
+        // ============================ IN-GAME HUD ============================
+
+        // The world-anchored readouts drawn behind every menu: NEXT, the score
+        // block and the controls hint. Extracted from OnGUI so the screen
+        // dispatcher can call it as one unit.
+        void DrawGameHud()
+        {
+            if (portrait)
+            {
+                // NEXT panel (top-left) and stats (top-right)
+                WLabel(previewOrigin.x, previewOrigin.y + 3.9f, "NEXT", _label, 200);
+                WLabel(6.8f, 23.6f, "SCORE " + score, _stat, 340);
+                WLabel(6.8f, 22.5f, "LEVEL " + level, _stat, 340);
+                WLabel(6.8f, 21.4f, "LINES " + lines, _stat, 340);
+
+                // Controls (below the board)
+                WLabel(4.5f, -2.3f, "← →  Move    ↑ / X  Rotate    ↓  Soft", _smallC, 900);
+                WLabel(4.5f, -3.4f, "Space  Hard drop  ·  P Pause  ·  R Restart", _smallC, 900);
+            }
+            else
+            {
+                WLabel(4.5f, 20.6f, "T E T R I S", _title, 400);
+                WLabel(previewOrigin.x, previewOrigin.y + 4.2f, "NEXT", _label, 200);
+
+                WLabel(11f, 12.3f, "SCORE", _label, 200);
+                WLabel(11f, 11.5f, score.ToString(), _value, 200);
+                WLabel(11f, 10.0f, "LEVEL", _label, 200);
+                WLabel(11f, 9.2f, level.ToString(), _value, 200);
+                WLabel(11f, 7.7f, "LINES", _label, 200);
+                WLabel(11f, 6.9f, lines.ToString(), _value, 200);
+
+                WLabel(11f, 4.6f, "← →  Move", _small, 220);
+                WLabel(11f, 4.0f, "↑ / X  Rotate", _small, 220);
+                WLabel(11f, 3.4f, "↓  Soft drop", _small, 220);
+                WLabel(11f, 2.8f, "Space  Hard drop", _small, 220);
+                WLabel(11f, 2.2f, "P Pause · R Restart", _small, 220);
+            }
+        }
+
         // ============================ TOAST ============================
 
         // Centred just under the board, so it reads without covering the stack.
