@@ -154,6 +154,7 @@ namespace TetrisArcade
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
             {
                 inMenu = true;
+                _runActive = false;
                 _inShop = true;
                 _shopMessage = "";
                 NewGame(false);
@@ -165,6 +166,7 @@ namespace TetrisArcade
             {
                 showSettings = false; _inSettings = false; _resOpen = false;
                 inMenu = true;
+                _runActive = false;
                 NewGame(false);   // reset the board without charging for passives
                 Redraw();
             }

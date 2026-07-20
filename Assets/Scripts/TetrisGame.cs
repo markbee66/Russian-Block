@@ -514,7 +514,7 @@ namespace TetrisArcade
             HandleAdminHotkey();
             if (inMenu)
             {
-                if (!_inSettings && !_inShop && !_inSkills && StartPressed()) { NewGame(); inMenu = false; }
+                if (!_inSettings && !_inShop && !_inSkills && StartPressed()) { NewGame(); inMenu = false; _runActive = true; }
                 Redraw();
                 return;
             }
@@ -1073,7 +1073,7 @@ namespace TetrisArcade
             y += btnH + gap;
             // QUIT here returns to the title screen; only the title's QUIT exits the app.
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
-            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; NewGame(false); Redraw(); }
+            { showSettings = false; _inSettings = false; _resOpen = false; inMenu = true; _runActive = false; NewGame(false); Redraw(); }
         }
 
         // Title screen shown on launch: a big title over START / SETTINGS / QUIT.
@@ -1106,7 +1106,7 @@ namespace TetrisArcade
             y += titleH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "START", _menuClose))
-            { NewGame(); inMenu = false; Redraw(); }
+            { NewGame(); inMenu = false; _runActive = true; Redraw(); }
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "SHOP", _menuClose))
             { _inShop = true; _shopMessage = ""; }
