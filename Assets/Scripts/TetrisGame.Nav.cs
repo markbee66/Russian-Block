@@ -116,18 +116,26 @@ namespace TetrisArcade
             for (int i = _nav.Count - 1; i >= 0; i--)
                 if (IsOpaque(_nav[i])) { from = i; break; }
 
+            // Only the topmost layer may take input. Layers below stay visible
+            // for context but must be inert: IMGUI hands an event to the FIRST
+            // control that contains the mouse, so a visible-but-live menu
+            // underneath would steal clicks aimed at the dialog on top of it.
             bool rootVisible = _nav.Count == 0 || !IsOpaque(_nav[from]);
             if (rootVisible)
             {
+                GUI.enabled = !ScreenOpen;
                 if (!_runActive) DrawTitleMenu();
                 else
                 {
                     DrawGameHud();
                     if (gameOver) DrawGameOverPanel();
                 }
+                GUI.enabled = true;
             }
 
             for (int i = from; i < _nav.Count; i++)
+            {
+                GUI.enabled = (i == _nav.Count - 1);
                 switch (_nav[i])
                 {
                     case MenuScreen.Settings:  DrawSettingsPanel();   break;
@@ -137,6 +145,8 @@ namespace TetrisArcade
                     case MenuScreen.Admin:     DrawAdminPanel();     break;
                     case MenuScreen.Confirm:   DrawConfirmDialog();  break;
                 }
+                GUI.enabled = true;
+            }
 
             // In-game chrome only when nothing is layered over the board.
             if (!ScreenOpen && _runActive)
