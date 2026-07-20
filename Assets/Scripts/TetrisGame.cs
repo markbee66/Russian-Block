@@ -734,9 +734,6 @@ namespace TetrisArcade
             _smallC.fontSize = Mathf.RoundToInt(fs * 0.85f); _smallC.normal.textColor = new Color(0.5f, 0.55f, 0.65f);
 
             DrawScreens();
-
-            // Admin still draws on top of everything; Stage 5 moves it onto the stack.
-            if (_adminOpen) DrawAdminPanel();
         }
 
         void WLabel(float wx, float wy, string text, GUIStyle style, float width)
@@ -1071,7 +1068,7 @@ namespace TetrisArcade
                 Push(MenuScreen.Settings);
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "ADMIN", _menuClose))
-                _adminOpen = !_adminOpen;
+                ToggleAdmin();
             y += btnH + gap;
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "QUIT", _menuClose))
                 Application.Quit();

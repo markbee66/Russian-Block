@@ -6,8 +6,8 @@ namespace TetrisArcade
     /// <summary>
     /// Single source of truth for which menu screen (if any) is on top, and
     /// whether a run is in progress. Replaces the old scattered flags
-    /// (inMenu / _inSettings / _inShop / _inSkills / showSettings / paused,
-    /// and later _adminOpen) with one navigation stack plus one run-state bool.
+    /// (inMenu / _inSettings / _inShop / _inSkills / showSettings / paused /
+    /// _adminOpen) with one navigation stack plus one run-state bool.
     ///
     /// MenuScreen does NOT include Title or GameOver:
     /// - Title is the root shown whenever !_runActive (no separate flag needed).
@@ -134,6 +134,7 @@ namespace TetrisArcade
                     case MenuScreen.Shop:      DrawShopScreen();      break;
                     case MenuScreen.Skills:    DrawSkillTreeScreen(); break;
                     case MenuScreen.PauseMenu: DrawPauseMenu();       break;
+                    case MenuScreen.Admin:     DrawAdminPanel();     break;
                 }
 
             // In-game chrome only when nothing is layered over the board.

@@ -19,15 +19,22 @@ namespace TetrisArcade
     /// </summary>
     public partial class TetrisGame
     {
-        bool _adminOpen;
+        // The panel is a MenuScreen entry now, so it freezes the run, closes on
+        // Escape and is cleared by every screen transition — none of which the
+        // old standalone _adminOpen bool did.
+        void ToggleAdmin()
+        {
+            if (ScreenOpen && Top == MenuScreen.Admin) Pop();
+            else Push(MenuScreen.Admin);
+        }
 
         void HandleAdminHotkey()
         {
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
-            if (k != null && k.f9Key.wasPressedThisFrame) _adminOpen = !_adminOpen;
+            if (k != null && k.f9Key.wasPressedThisFrame) ToggleAdmin();
 #else
-            if (Input.GetKeyDown(KeyCode.F9)) _adminOpen = !_adminOpen;
+            if (Input.GetKeyDown(KeyCode.F9)) ToggleAdmin();
 #endif
         }
 
@@ -97,7 +104,7 @@ namespace TetrisArcade
             y += btnH + gap;
 
             if (GUI.Button(new Rect(innerX, y, innerW, btnH), "CLOSE", _menuClose))
-                _adminOpen = false;
+                Pop();
         }
     }
 }
